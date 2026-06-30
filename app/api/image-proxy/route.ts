@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const IMAGE_PROXY_HEADER_TIMEOUT_MS = 25_000;
+const IMAGE_PROXY_HEADER_TIMEOUT_MS = 55_000;
 
 const IMAGE_PROXY_HEADERS = {
   Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
@@ -116,6 +116,12 @@ export async function GET(req: NextRequest) {
     });
   } catch (error) {
     console.error("[Image Proxy]", error);
+    if (error instanceof DOMException && error.name === "AbortError") {
+      return jsonError("Image fetch timed out", 504, {
+        timeoutMs: IMAGE_PROXY_HEADER_TIMEOUT_MS,
+      });
+    }
+
     return jsonError("Image proxy failed", 502);
   }
 }
