@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const IMAGE_PROXY_TIMEOUT_MS = 25_000;
+const IMAGE_PROXY_HEADER_TIMEOUT_MS = 25_000;
 
 const IMAGE_PROXY_HEADERS = {
   Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
@@ -70,13 +70,21 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Timeout only while waiting for headers; slow image bodies should stream.
+    const controller = new AbortController();
+    const headerTimeout = setTimeout(() => {
+      controller.abort();
+    }, IMAGE_PROXY_HEADER_TIMEOUT_MS);
+
     const upstream = await fetch(target.toString(), {
       headers: {
         ...IMAGE_PROXY_HEADERS,
         Referer: `${target.origin}/`,
       },
       redirect: "follow",
-      signal: AbortSignal.timeout(IMAGE_PROXY_TIMEOUT_MS),
+      signal: controller.signal,
+    }).finally(() => {
+      clearTimeout(headerTimeout);
     });
 
     if (!upstream.ok || !upstream.body) {
@@ -113,4 +121,4 @@ export async function GET(req: NextRequest) {
 }
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60;
