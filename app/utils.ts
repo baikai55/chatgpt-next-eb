@@ -149,6 +149,14 @@ export function useMobileScreen() {
   return width <= MOBILE_MAX_WIDTH;
 }
 
+export function proxiedImageUrl(src?: string | null) {
+  if (!src || !/^http:\/\//i.test(src)) {
+    return src ?? "";
+  }
+
+  return `/api/image-proxy?url=${encodeURIComponent(src)}`;
+}
+
 export function isFirefox() {
   return (
     typeof navigator !== "undefined" && /firefox/i.test(navigator.userAgent)

@@ -49,7 +49,6 @@ import ShortcutkeyIcon from "../icons/shortcutkey.svg";
 import McpToolIcon from "../icons/tool.svg";
 import HeadphoneIcon from "../icons/headphone.svg";
 import {
-  BOT_HELLO,
   ChatMessage,
   createMessage,
   DEFAULT_TOPIC,
@@ -69,6 +68,7 @@ import {
   getMessageTextContent,
   isDalle3,
   isVisionModel,
+  proxiedImageUrl,
   safeLocalStorage,
   getModelSizes,
   supportsCustomSize,
@@ -1334,15 +1334,13 @@ function _Chat() {
     return session.mask.hideContext ? [] : session.mask.context.slice();
   }, [session.mask.context, session.mask.hideContext]);
 
-  if (
-    context.length === 0 &&
-    session.messages.at(0)?.content !== BOT_HELLO.content
-  ) {
-    const copiedHello = Object.assign({}, BOT_HELLO);
-    if (!accessStore.isAuthorized()) {
-      copiedHello.content = Locale.Error.Unauthorized;
-    }
-    context.push(copiedHello);
+  if (context.length === 0 && !accessStore.isAuthorized()) {
+    context.push(
+      createMessage({
+        role: "assistant",
+        content: Locale.Error.Unauthorized,
+      }),
+    );
   }
 
   // preview messages
@@ -1988,7 +1986,9 @@ function _Chat() {
                             {getMessageImages(message).length == 1 && (
                               <img
                                 className={styles["chat-message-item-image"]}
-                                src={getMessageImages(message)[0]}
+                                src={proxiedImageUrl(
+                                  getMessageImages(message)[0],
+                                )}
                                 alt=""
                               />
                             )}
@@ -2012,7 +2012,7 @@ function _Chat() {
                                           ]
                                         }
                                         key={index}
-                                        src={image}
+                                        src={proxiedImageUrl(image)}
                                         alt=""
                                       />
                                     );
@@ -2100,7 +2100,9 @@ function _Chat() {
                         <div
                           key={index}
                           className={styles["attach-image"]}
-                          style={{ backgroundImage: `url("${image}")` }}
+                          style={{
+                            backgroundImage: `url("${proxiedImageUrl(image)}")`,
+                          }}
                         >
                           <div className={styles["attach-image-mask"]}>
                             <DeleteImageButton

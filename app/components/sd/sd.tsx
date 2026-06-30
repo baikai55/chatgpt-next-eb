@@ -10,6 +10,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   copyToClipboard,
   getMessageTextContent,
+  proxiedImageUrl,
   useMobileScreen,
 } from "@/app/utils";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -164,7 +165,7 @@ export function Sd() {
                       {item.status === "success" ? (
                         <img
                           className={styles["img"]}
-                          src={item.img_data}
+                          src={proxiedImageUrl(item.img_data)}
                           alt={item.id}
                           onClick={(e) =>
                             showImageModal(

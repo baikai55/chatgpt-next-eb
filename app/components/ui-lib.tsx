@@ -25,6 +25,7 @@ import React, {
 import { IconButton } from "./button";
 import { Avatar } from "./emoji";
 import clsx from "clsx";
+import { proxiedImageUrl } from "../utils";
 
 export function Popover(props: {
   children: JSX.Element;
@@ -461,7 +462,7 @@ export function showImageModal(
     children: (
       <div style={{ display: "flex", justifyContent: "center", ...boxStyle }}>
         <img
-          src={img}
+          src={proxiedImageUrl(img)}
           alt="preview"
           style={
             style ?? {

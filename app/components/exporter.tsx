@@ -16,6 +16,7 @@ import {
   copyToClipboard,
   downloadAs,
   getMessageImages,
+  proxiedImageUrl,
   useMobileScreen,
 } from "../utils";
 
@@ -582,7 +583,7 @@ export function ImagePreviewer(props: {
                 {getMessageImages(m).length == 1 && (
                   <img
                     key={i}
-                    src={getMessageImages(m)[0]}
+                    src={proxiedImageUrl(getMessageImages(m)[0])}
                     alt="message"
                     className={styles["message-image"]}
                   />
@@ -599,7 +600,7 @@ export function ImagePreviewer(props: {
                     {getMessageImages(m).map((src, i) => (
                       <img
                         key={i}
-                        src={src}
+                        src={proxiedImageUrl(src)}
                         alt="message"
                         className={styles["message-image-multi"]}
                       />
