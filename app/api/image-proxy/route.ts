@@ -65,7 +65,10 @@ export async function GET(req: NextRequest) {
     return jsonError("Unsupported protocol", 400);
   }
 
-  if (isBlockedHostname(target.hostname)) {
+  if (
+    isBlockedHostname(target.hostname) &&
+    !target.pathname.startsWith("/api/")
+  ) {
     return jsonError("Blocked host", 400);
   }
 
