@@ -154,6 +154,13 @@ export function proxiedImageUrl(src?: string | null) {
     return src ?? "";
   }
 
+  try {
+    const u = new URL(src);
+    if (u.pathname.startsWith("/api/cache/")) {
+      return u.pathname;
+    }
+  } catch {}
+
   return `/api/image-proxy?url=${encodeURIComponent(src)}`;
 }
 
