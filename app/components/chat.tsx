@@ -1033,6 +1033,7 @@ function _Chat() {
   const navigate = useNavigate();
   const [attachImages, setAttachImages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   // prompt hints
   const promptStore = usePromptStore();
@@ -2028,6 +2029,14 @@ function _Chat() {
                                   getMessageImages(message)[0],
                                 )}
                                 alt=""
+                                onClick={() =>
+                                  setPreviewImage(
+                                    proxiedImageUrl(
+                                      getMessageImages(message)[0],
+                                    ),
+                                  )
+                                }
+                                style={{ cursor: "pointer" }}
                               />
                             )}
                             {getMessageImages(message).length > 1 && (
@@ -2052,6 +2061,12 @@ function _Chat() {
                                         key={index}
                                         src={proxiedImageUrl(image)}
                                         alt=""
+                                        onClick={() =>
+                                          setPreviewImage(
+                                            proxiedImageUrl(image),
+                                          )
+                                        }
+                                        style={{ cursor: "pointer" }}
                                       />
                                     );
                                   },
@@ -2203,6 +2218,20 @@ function _Chat() {
 
       {showShortcutKeyModal && (
         <ShortcutKeyModal onClose={() => setShowShortcutKeyModal(false)} />
+      )}
+
+      {previewImage && (
+        <div
+          className={styles["image-preview-overlay"]}
+          onClick={() => setPreviewImage(null)}
+        >
+          <img
+            className={styles["image-preview-img"]}
+            src={previewImage}
+            alt=""
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
       )}
     </>
   );
