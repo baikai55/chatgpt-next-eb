@@ -1550,6 +1550,44 @@ function _Chat() {
     [attachImages, chatStore],
   );
 
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const currentModel = chatStore.currentSession().mask.modelConfig.model;
+      if (!isVisionModel(currentModel)) {
+        return;
+      }
+      const files = e.dataTransfer.files;
+      if (!files || files.length === 0) return;
+
+      const images: string[] = [...attachImages];
+      setUploading(true);
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (!file.type.startsWith("image/")) continue;
+        try {
+          const dataUrl = await uploadImageRemote(file);
+          images.push(dataUrl);
+          if (images.length >= 3) break;
+        } catch (e) {
+          console.error("Failed to upload image", e);
+        }
+      }
+      setUploading(false);
+      if (images.length > 3) {
+        images.splice(3, images.length - 3);
+      }
+      setAttachImages(images);
+    },
+    [attachImages, chatStore],
+  );
+
   async function uploadImage() {
     const images: string[] = [];
     images.push(...attachImages);
@@ -2039,7 +2077,11 @@ function _Chat() {
                   );
                 })}
             </div>
-            <div className={styles["chat-input-panel"]}>
+            <div
+              className={styles["chat-input-panel"]}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            >
               <PromptHints
                 prompts={promptHints}
                 onPromptSelect={onPromptSelect}
