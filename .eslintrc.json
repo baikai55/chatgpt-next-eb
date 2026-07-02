@@ -3,5 +3,13 @@
   "plugins": ["prettier", "unused-imports"],
   "rules": {
     "unused-imports/no-unused-imports": "warn"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["app/constant.ts"],
+      "rules": {
+        "unused-imports/no-unused-imports": "off"
+      }
+    }
+  ]
 }
