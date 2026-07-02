@@ -27,6 +27,22 @@ English / [简体中文](./README_CN.md)
 
 </div>
 
+## Fork Notes
+
+- This repository is a secondary-development fork based on the original ChatGPT-Next-Web / NextChat project.
+- The current maintenance focus is self-hosted deployment, custom provider access, and reducing upstream traffic diversion in the product UI.
+- When syncing upstream changes, review branding, repository links, updater endpoints, built-in resources, and documentation before merging.
+
+## Changes In This Fork
+
+- Added custom provider support in settings with OpenAI-, Anthropic-, and Google-compatible protocol options.
+- Custom providers now support configurable base URL, chat path, API key, and model list.
+- Removed SaaS / paid-entry guidance from auth, settings, and unauthorized prompts to avoid redirecting users to the upstream site.
+- Replaced repository, release, plugin, updater, and setup-script links with this fork's addresses.
+- Switched MCP preset data to local static resources and localized built-in plugin schemas under `public/plugins/`.
+- Updated the desktop app updater endpoint to this repository's release feed.
+- Included additional optimizations around image proxying, Markdown rendering, and settings-related interactions.
+
 ## ❤️ Sponsor AI API
 
 <a href='https://302.ai/'>
