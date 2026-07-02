@@ -2,6 +2,7 @@ import { getClientConfig } from "../config/client";
 import {
   ACCESS_CODE_PREFIX,
   ModelProvider,
+  REPO_URL,
   ServiceProvider,
 } from "../constant";
 import {
@@ -11,6 +12,7 @@ import {
   useAccessStore,
   useChatStore,
 } from "../store";
+import type { CustomProvider } from "../store/access";
 import { ChatGPTApi, DalleRequestPayload } from "./platforms/openai";
 import { GeminiProApi } from "./platforms/google";
 import { ClaudeApi } from "./platforms/anthropic";
@@ -136,7 +138,23 @@ interface ChatProvider {
 export class ClientApi {
   public llm: LLMApi;
 
-  constructor(provider: ModelProvider = ModelProvider.GPT) {
+  constructor(
+    provider: ModelProvider = ModelProvider.GPT,
+    customProviderConfig?: CustomProvider,
+  ) {
+    if (customProviderConfig) {
+      switch (customProviderConfig.protocol) {
+        case "anthropic":
+          this.llm = new ClaudeApi(customProviderConfig);
+          break;
+        case "google":
+          this.llm = new GeminiProApi(customProviderConfig);
+          break;
+        default:
+          this.llm = new ChatGPTApi(customProviderConfig);
+      }
+      return;
+    }
     switch (provider) {
       case ModelProvider.GeminiPro:
         this.llm = new GeminiProApi();
@@ -197,8 +215,7 @@ export class ClientApi {
       .concat([
         {
           from: "human",
-          value:
-            "Share from [NextChat]: https://github.com/Yidadaa/ChatGPT-Next-Web",
+          value: `Share from [NextChat]: ${REPO_URL}`,
         },
       ]);
     // 敬告二开开发者们，为了开源大模型的发展，请不要修改上述消息，此消息用于后续数据清洗使用
@@ -241,7 +258,23 @@ export function validString(x: string): boolean {
   return x?.length > 0;
 }
 
-export function getHeaders(ignoreHeaders: boolean = false) {
+export function joinBaseUrlPath(baseUrl: string, path: string): string {
+  const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
+  const normalizedPath = path.replace(/^\/+/, "");
+  const pathSegments = normalizedPath.split("/");
+  const baseLastSegment = normalizedBaseUrl.split("/").filter(Boolean).pop();
+
+  if (baseLastSegment && pathSegments[0] === baseLastSegment) {
+    pathSegments.shift();
+  }
+
+  return [normalizedBaseUrl, pathSegments.join("/")].filter(Boolean).join("/");
+}
+
+export function getHeaders(
+  ignoreHeaders: boolean = false,
+  providerName?: string,
+) {
   const accessStore = useAccessStore.getState();
   const chatStore = useChatStore.getState();
   let headers: Record<string, string> = {};
@@ -253,101 +286,70 @@ export function getHeaders(ignoreHeaders: boolean = false) {
   }
 
   const clientConfig = getClientConfig();
+  const resolvedProviderName =
+    providerName ?? chatStore.currentSession().mask.modelConfig.providerName;
+  const customProvider = accessStore.customProviders?.find(
+    (provider: CustomProvider) => provider.name === resolvedProviderName,
+  );
+  const customProtocol = customProvider?.protocol;
+  const isGoogle =
+    resolvedProviderName === ServiceProvider.Google ||
+    customProtocol === "google";
+  const isAzure = resolvedProviderName === ServiceProvider.Azure;
+  const isAnthropic =
+    resolvedProviderName === ServiceProvider.Anthropic ||
+    customProtocol === "anthropic";
+  const isBaidu = resolvedProviderName == ServiceProvider.Baidu;
+  const isByteDance = resolvedProviderName === ServiceProvider.ByteDance;
+  const isAlibaba = resolvedProviderName === ServiceProvider.Alibaba;
+  const isMoonshot = resolvedProviderName === ServiceProvider.Moonshot;
+  const isIflytek = resolvedProviderName === ServiceProvider.Iflytek;
+  const isDeepSeek = resolvedProviderName === ServiceProvider.DeepSeek;
+  const isXAI = resolvedProviderName === ServiceProvider.XAI;
+  const isChatGLM = resolvedProviderName === ServiceProvider.ChatGLM;
+  const isSiliconFlow = resolvedProviderName === ServiceProvider.SiliconFlow;
+  const isAI302 = resolvedProviderName === ServiceProvider["302.AI"];
+  const isEnabledAccessControl = accessStore.enabledAccessControl();
 
-  function getConfig() {
-    const modelConfig = chatStore.currentSession().mask.modelConfig;
-    const isGoogle = modelConfig.providerName === ServiceProvider.Google;
-    const isAzure = modelConfig.providerName === ServiceProvider.Azure;
-    const isAnthropic = modelConfig.providerName === ServiceProvider.Anthropic;
-    const isBaidu = modelConfig.providerName == ServiceProvider.Baidu;
-    const isByteDance = modelConfig.providerName === ServiceProvider.ByteDance;
-    const isAlibaba = modelConfig.providerName === ServiceProvider.Alibaba;
-    const isMoonshot = modelConfig.providerName === ServiceProvider.Moonshot;
-    const isIflytek = modelConfig.providerName === ServiceProvider.Iflytek;
-    const isDeepSeek = modelConfig.providerName === ServiceProvider.DeepSeek;
-    const isXAI = modelConfig.providerName === ServiceProvider.XAI;
-    const isChatGLM = modelConfig.providerName === ServiceProvider.ChatGLM;
-    const isSiliconFlow =
-      modelConfig.providerName === ServiceProvider.SiliconFlow;
-    const isAI302 = modelConfig.providerName === ServiceProvider["302.AI"];
-    const isEnabledAccessControl = accessStore.enabledAccessControl();
-    const apiKey = isGoogle
-      ? accessStore.googleApiKey
-      : isAzure
-      ? accessStore.azureApiKey
-      : isAnthropic
-      ? accessStore.anthropicApiKey
-      : isByteDance
-      ? accessStore.bytedanceApiKey
-      : isAlibaba
-      ? accessStore.alibabaApiKey
-      : isMoonshot
-      ? accessStore.moonshotApiKey
-      : isXAI
-      ? accessStore.xaiApiKey
-      : isDeepSeek
-      ? accessStore.deepseekApiKey
-      : isChatGLM
-      ? accessStore.chatglmApiKey
-      : isSiliconFlow
-      ? accessStore.siliconflowApiKey
-      : isIflytek
-      ? accessStore.iflytekApiKey && accessStore.iflytekApiSecret
-        ? accessStore.iflytekApiKey + ":" + accessStore.iflytekApiSecret
-        : ""
-      : isAI302
-      ? accessStore.ai302ApiKey
-      : accessStore.openaiApiKey;
-    return {
-      isGoogle,
-      isAzure,
-      isAnthropic,
-      isBaidu,
-      isByteDance,
-      isAlibaba,
-      isMoonshot,
-      isIflytek,
-      isDeepSeek,
-      isXAI,
-      isChatGLM,
-      isSiliconFlow,
-      isAI302,
-      apiKey,
-      isEnabledAccessControl,
-    };
-  }
-
-  function getAuthHeader(): string {
-    return isAzure
-      ? "api-key"
-      : isAnthropic
-      ? "x-api-key"
-      : isGoogle
-      ? "x-goog-api-key"
-      : "Authorization";
-  }
-
-  const {
-    isGoogle,
-    isAzure,
-    isAnthropic,
-    isBaidu,
-    isByteDance,
-    isAlibaba,
-    isMoonshot,
-    isIflytek,
-    isDeepSeek,
-    isXAI,
-    isChatGLM,
-    isSiliconFlow,
-    isAI302,
-    apiKey,
-    isEnabledAccessControl,
-  } = getConfig();
+  const apiKey = customProvider
+    ? customProvider.apiKey
+    : isGoogle
+    ? accessStore.googleApiKey
+    : isAzure
+    ? accessStore.azureApiKey
+    : isAnthropic
+    ? accessStore.anthropicApiKey
+    : isByteDance
+    ? accessStore.bytedanceApiKey
+    : isAlibaba
+    ? accessStore.alibabaApiKey
+    : isMoonshot
+    ? accessStore.moonshotApiKey
+    : isXAI
+    ? accessStore.xaiApiKey
+    : isDeepSeek
+    ? accessStore.deepseekApiKey
+    : isChatGLM
+    ? accessStore.chatglmApiKey
+    : isSiliconFlow
+    ? accessStore.siliconflowApiKey
+    : isIflytek
+    ? accessStore.iflytekApiKey && accessStore.iflytekApiSecret
+      ? accessStore.iflytekApiKey + ":" + accessStore.iflytekApiSecret
+      : ""
+    : isAI302
+    ? accessStore.ai302ApiKey
+    : accessStore.openaiApiKey;
   // when using baidu api in app, not set auth header
   if (isBaidu && clientConfig?.isApp) return headers;
 
-  const authHeader = getAuthHeader();
+  const authHeader = isAzure
+    ? "api-key"
+    : isAnthropic
+    ? "x-api-key"
+    : isGoogle
+    ? "x-goog-api-key"
+    : "Authorization";
 
   const bearerToken = getBearerToken(
     apiKey,
@@ -365,7 +367,7 @@ export function getHeaders(ignoreHeaders: boolean = false) {
   return headers;
 }
 
-export function getClientApi(provider: ServiceProvider): ClientApi {
+export function getClientApi(provider: ServiceProvider | string): ClientApi {
   switch (provider) {
     case ServiceProvider.Google:
       return new ClientApi(ModelProvider.GeminiPro);
@@ -393,7 +395,15 @@ export function getClientApi(provider: ServiceProvider): ClientApi {
       return new ClientApi(ModelProvider.SiliconFlow);
     case ServiceProvider["302.AI"]:
       return new ClientApi(ModelProvider["302.AI"]);
-    default:
+    default: {
+      const accessStore = useAccessStore.getState();
+      const customProvider = accessStore.customProviders?.find(
+        (p) => p.name === provider,
+      );
+      if (customProvider) {
+        return new ClientApi(ModelProvider.GPT, customProvider);
+      }
       return new ClientApi(ModelProvider.GPT);
+    }
   }
 }

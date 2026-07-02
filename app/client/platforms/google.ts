@@ -2,6 +2,7 @@ import { ApiPath, Google } from "@/app/constant";
 import {
   ChatOptions,
   getHeaders,
+  joinBaseUrlPath,
   LLMApi,
   LLMModel,
   LLMUsage,
@@ -28,13 +29,23 @@ import { preProcessImageContent } from "@/app/utils/chat";
 import { nanoid } from "nanoid";
 import { RequestPayload } from "./openai";
 import { fetch } from "@/app/utils/stream";
+import type { CustomProvider } from "@/app/store/access";
+import { resolveCustomProviderChatPath } from "@/app/utils/custom-provider";
 
 export class GeminiProApi implements LLMApi {
+  private customProviderConfig?: CustomProvider;
+
+  constructor(customProviderConfig?: CustomProvider) {
+    this.customProviderConfig = customProviderConfig;
+  }
+
   path(path: string, shouldStream = false): string {
     const accessStore = useAccessStore.getState();
 
     let baseUrl = "";
-    if (accessStore.useCustomConfig) {
+    if (this.customProviderConfig) {
+      baseUrl = this.customProviderConfig.baseUrl;
+    } else if (accessStore.useCustomConfig) {
       baseUrl = accessStore.googleUrl;
     }
 
@@ -45,13 +56,13 @@ export class GeminiProApi implements LLMApi {
     if (baseUrl.endsWith("/")) {
       baseUrl = baseUrl.slice(0, baseUrl.length - 1);
     }
-    if (!baseUrl.startsWith("http") && !baseUrl.startsWith(ApiPath.Google)) {
+    if (!baseUrl.startsWith("http") && !baseUrl.startsWith("/")) {
       baseUrl = "https://" + baseUrl;
     }
 
     console.log("[Proxy Endpoint] ", baseUrl, path);
 
-    let chatPath = [baseUrl, path].join("/");
+    let chatPath = joinBaseUrlPath(baseUrl, path);
     if (shouldStream) {
       chatPath += chatPath.includes("?") ? "&alt=sse" : "?alt=sse";
     }
@@ -142,6 +153,7 @@ export class GeminiProApi implements LLMApi {
     // }
 
     const accessStore = useAccessStore.getState();
+    const headers = getHeaders(false, options.config.providerName);
 
     const modelConfig = {
       ...useAppConfig.getState().modelConfig,
@@ -187,7 +199,10 @@ export class GeminiProApi implements LLMApi {
     try {
       // https://github.com/google-gemini/cookbook/blob/main/quickstarts/rest/Streaming_REST.ipynb
       const chatPath = this.path(
-        Google.ChatPath(modelConfig.model),
+        resolveCustomProviderChatPath(
+          this.customProviderConfig,
+          modelConfig.model,
+        ) || Google.ChatPath(modelConfig.model),
         shouldStream,
       );
 
@@ -195,7 +210,7 @@ export class GeminiProApi implements LLMApi {
         method: "POST",
         body: JSON.stringify(requestPayload),
         signal: controller.signal,
-        headers: getHeaders(),
+        headers,
       };
 
       const isThinking = options.config.model.includes("-thinking");
@@ -214,7 +229,7 @@ export class GeminiProApi implements LLMApi {
         return stream(
           chatPath,
           requestPayload,
-          getHeaders(),
+          headers,
           // @ts-ignore
           tools.length > 0
             ? // @ts-ignore

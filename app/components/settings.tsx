@@ -9,7 +9,6 @@ import CopyIcon from "../icons/copy.svg";
 import ClearIcon from "../icons/clear.svg";
 import LoadingIcon from "../icons/three-dots.svg";
 import EditIcon from "../icons/edit.svg";
-import FireIcon from "../icons/fire.svg";
 import EyeIcon from "../icons/eye.svg";
 import DownloadIcon from "../icons/download.svg";
 import UploadIcon from "../icons/upload.svg";
@@ -19,7 +18,6 @@ import ConfirmIcon from "../icons/confirm.svg";
 import ConnectionIcon from "../icons/connection.svg";
 import CloudSuccessIcon from "../icons/cloud-success.svg";
 import CloudFailIcon from "../icons/cloud-fail.svg";
-import { trackSettingsPageGuideToCPaymentClick } from "../utils/auth-settings-events";
 import {
   Input,
   List,
@@ -42,6 +40,7 @@ import {
   useAccessStore,
   useAppConfig,
 } from "../store";
+import type { CustomProvider, CustomProviderProtocol } from "../store/access";
 
 import Locale, {
   AllLangs,
@@ -50,6 +49,7 @@ import Locale, {
   getLang,
 } from "../locales";
 import { copyToClipboard, clientUpdate, semverCompare } from "../utils";
+import { getDefaultCustomProviderChatPath } from "../utils/custom-provider";
 import Link from "next/link";
 import {
   Anthropic,
@@ -71,7 +71,6 @@ import {
   UPDATE_URL,
   Stability,
   Iflytek,
-  SAAS_CHAT_URL,
   ChatGLM,
   DeepSeek,
   SiliconFlow,
@@ -581,6 +580,291 @@ function SyncItems() {
   );
 }
 
+function CustomProviderSettings() {
+  const accessStore = useAccessStore();
+  const customProviders = accessStore.customProviders || [];
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    protocol: "openai" as CustomProvider["protocol"],
+    baseUrl: "",
+    chatPath: getDefaultCustomProviderChatPath("openai"),
+    apiKey: "",
+    models: "",
+  });
+
+  const startEdit = (provider: CustomProvider) => {
+    setEditingId(provider.id);
+    setEditForm({
+      name: provider.name,
+      protocol: provider.protocol,
+      baseUrl: provider.baseUrl,
+      chatPath:
+        provider.chatPath ||
+        getDefaultCustomProviderChatPath(provider.protocol),
+      apiKey: provider.apiKey,
+      models: provider.models.join("\n"),
+    });
+  };
+
+  const startAdd = () => {
+    setEditingId("new");
+    setEditForm({
+      name: "",
+      protocol: "openai",
+      baseUrl: "",
+      chatPath: getDefaultCustomProviderChatPath("openai"),
+      apiKey: "",
+      models: "",
+    });
+  };
+
+  const saveProvider = () => {
+    if (!editForm.name || !editForm.baseUrl) {
+      showToast(Locale.Settings.Access.CustomProvider.NamePlaceholder);
+      return;
+    }
+    const models = editForm.models
+      .split(/[\n,]/)
+      .map((m) => m.trim())
+      .filter(Boolean);
+    if (editingId === "new") {
+      accessStore.addCustomProvider({
+        id: nanoid(),
+        name: editForm.name,
+        protocol: editForm.protocol,
+        baseUrl: editForm.baseUrl,
+        chatPath:
+          editForm.chatPath.trim() ||
+          getDefaultCustomProviderChatPath(editForm.protocol),
+        apiKey: editForm.apiKey,
+        models,
+      });
+    } else if (editingId) {
+      accessStore.updateCustomProvider(editingId, {
+        name: editForm.name,
+        protocol: editForm.protocol,
+        baseUrl: editForm.baseUrl,
+        chatPath:
+          editForm.chatPath.trim() ||
+          getDefaultCustomProviderChatPath(editForm.protocol),
+        apiKey: editForm.apiKey,
+        models,
+      });
+    }
+    setEditingId(null);
+  };
+
+  return (
+    <>
+      <ListItem
+        title={Locale.Settings.Access.CustomProvider.Title}
+        subTitle={Locale.Settings.Access.CustomProvider.SubTitle}
+      >
+        <IconButton
+          aria={Locale.Settings.Access.CustomProvider.AddAction}
+          icon={<AddIcon />}
+          text={Locale.Settings.Access.CustomProvider.AddAction}
+          onClick={startAdd}
+          bordered
+        />
+      </ListItem>
+
+      {customProviders.map((provider) => (
+        <ListItem
+          key={provider.id}
+          title={provider.name}
+          subTitle={`${provider.baseUrl} | ${
+            provider.chatPath ||
+            getDefaultCustomProviderChatPath(provider.protocol)
+          } | ${provider.models.length} ${
+            Locale.Settings.Access.CustomProvider.ModelsCount
+          }`}
+        >
+          <div style={{ display: "flex", gap: 8 }}>
+            <IconButton
+              aria="edit"
+              icon={<EditIcon />}
+              onClick={() => startEdit(provider)}
+              bordered
+            />
+            <IconButton
+              aria="delete"
+              icon={<CloseIcon />}
+              onClick={() => accessStore.removeCustomProvider(provider.id)}
+              bordered
+            />
+          </div>
+        </ListItem>
+      ))}
+
+      {editingId && (
+        <div className="modal-mask">
+          <Modal
+            title={
+              editingId === "new"
+                ? Locale.Settings.Access.CustomProvider.AddAction
+                : Locale.Settings.Access.CustomProvider.EditAction
+            }
+            onClose={() => setEditingId(null)}
+            actions={[
+              <IconButton
+                key="confirm"
+                onClick={saveProvider}
+                text={Locale.UI.Confirm}
+                bordered
+                icon={<ConfirmIcon />}
+              />,
+              <IconButton
+                key="cancel"
+                onClick={() => setEditingId(null)}
+                text={Locale.UI.Cancel}
+                bordered
+              />,
+            ]}
+          >
+            <div className={styles["custom-provider-modal"]}>
+              <List>
+                <ListItem title={Locale.Settings.Access.CustomProvider.Name}>
+                  <div className={styles["custom-provider-field"]}>
+                    <input
+                      aria-label={Locale.Settings.Access.CustomProvider.Name}
+                      type="text"
+                      value={editForm.name}
+                      placeholder={
+                        Locale.Settings.Access.CustomProvider.NamePlaceholder
+                      }
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          name: e.currentTarget.value,
+                        })
+                      }
+                    />
+                  </div>
+                </ListItem>
+                <ListItem
+                  title={Locale.Settings.Access.CustomProvider.Protocol}
+                >
+                  <Select
+                    className={styles["custom-provider-field"]}
+                    aria-label={Locale.Settings.Access.CustomProvider.Protocol}
+                    value={editForm.protocol}
+                    onChange={(e) =>
+                      setEditForm((form) => {
+                        const protocol = e.currentTarget
+                          .value as CustomProviderProtocol;
+                        return {
+                          ...form,
+                          protocol,
+                          chatPath: getDefaultCustomProviderChatPath(protocol),
+                        };
+                      })
+                    }
+                  >
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="google">Google</option>
+                  </Select>
+                </ListItem>
+                <ListItem
+                  title={Locale.Settings.Access.CustomProvider.Endpoint}
+                >
+                  <div className={styles["custom-provider-field"]}>
+                    <input
+                      aria-label={
+                        Locale.Settings.Access.CustomProvider.Endpoint
+                      }
+                      type="text"
+                      value={editForm.baseUrl}
+                      placeholder={
+                        Locale.Settings.Access.CustomProvider
+                          .EndpointPlaceholder
+                      }
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          baseUrl: e.currentTarget.value,
+                        })
+                      }
+                    />
+                  </div>
+                </ListItem>
+                <ListItem
+                  title={Locale.Settings.Access.CustomProvider.ChatPath}
+                  subTitle={
+                    Locale.Settings.Access.CustomProvider.ChatPathSubTitle
+                  }
+                >
+                  <div className={styles["custom-provider-field"]}>
+                    <input
+                      aria-label={
+                        Locale.Settings.Access.CustomProvider.ChatPath
+                      }
+                      type="text"
+                      value={editForm.chatPath}
+                      placeholder={
+                        Locale.Settings.Access.CustomProvider
+                          .ChatPathPlaceholder
+                      }
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          chatPath: e.currentTarget.value,
+                        })
+                      }
+                    />
+                  </div>
+                </ListItem>
+                <ListItem
+                  title={Locale.Settings.Access.CustomProvider.ApiKeyTitle}
+                >
+                  <div className={styles["custom-provider-field"]}>
+                    <PasswordInput
+                      aria-label={
+                        Locale.Settings.Access.CustomProvider.ApiKeyTitle
+                      }
+                      value={editForm.apiKey}
+                      type="text"
+                      placeholder={
+                        Locale.Settings.Access.CustomProvider.ApiKeyPlaceholder
+                      }
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          apiKey: e.currentTarget.value,
+                        })
+                      }
+                    />
+                  </div>
+                </ListItem>
+                <ListItem title={Locale.Settings.Access.CustomProvider.Models}>
+                  <div className={styles["custom-provider-field"]}>
+                    <Input
+                      aria-label={Locale.Settings.Access.CustomProvider.Models}
+                      rows={5}
+                      value={editForm.models}
+                      placeholder={
+                        Locale.Settings.Access.CustomProvider.ModelsPlaceholder
+                      }
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          models: e.currentTarget.value,
+                        })
+                      }
+                    />
+                  </div>
+                </ListItem>
+              </List>
+            </div>
+          </Modal>
+        </div>
+      )}
+    </>
+  );
+}
+
 export function Settings() {
   const navigate = useNavigate();
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -689,31 +973,6 @@ export function Settings() {
           accessStore.update(
             (access) => (access.accessCode = e.currentTarget.value),
           );
-        }}
-      />
-    </ListItem>
-  );
-
-  const saasStartComponent = (
-    <ListItem
-      className={styles["subtitle-button"]}
-      title={
-        Locale.Settings.Access.SaasStart.Title +
-        `${Locale.Settings.Access.SaasStart.Label}`
-      }
-      subTitle={Locale.Settings.Access.SaasStart.SubTitle}
-    >
-      <IconButton
-        aria={
-          Locale.Settings.Access.SaasStart.Title +
-          Locale.Settings.Access.SaasStart.ChatNow
-        }
-        icon={<FireIcon />}
-        type={"primary"}
-        text={Locale.Settings.Access.SaasStart.ChatNow}
-        onClick={() => {
-          trackSettingsPageGuideToCPaymentClick();
-          window.location.href = SAAS_CHAT_URL;
         }}
       />
     </ListItem>
@@ -1459,44 +1718,44 @@ export function Settings() {
     </>
   );
 
-  const ai302ConfigComponent = accessStore.provider === ServiceProvider["302.AI"] && (
+  const ai302ConfigComponent = accessStore.provider ===
+    ServiceProvider["302.AI"] && (
     <>
       <ListItem
-          title={Locale.Settings.Access.AI302.Endpoint.Title}
-          subTitle={
-            Locale.Settings.Access.AI302.Endpoint.SubTitle +
-            AI302.ExampleEndpoint
+        title={Locale.Settings.Access.AI302.Endpoint.Title}
+        subTitle={
+          Locale.Settings.Access.AI302.Endpoint.SubTitle + AI302.ExampleEndpoint
+        }
+      >
+        <input
+          aria-label={Locale.Settings.Access.AI302.Endpoint.Title}
+          type="text"
+          value={accessStore.ai302Url}
+          placeholder={AI302.ExampleEndpoint}
+          onChange={(e) =>
+            accessStore.update(
+              (access) => (access.ai302Url = e.currentTarget.value),
+            )
           }
-        >
-          <input
-            aria-label={Locale.Settings.Access.AI302.Endpoint.Title}
-            type="text"
-            value={accessStore.ai302Url}
-            placeholder={AI302.ExampleEndpoint}
-            onChange={(e) =>
-              accessStore.update(
-                (access) => (access.ai302Url = e.currentTarget.value),
-              )
-            }
-          ></input>
-        </ListItem>
-        <ListItem
-          title={Locale.Settings.Access.AI302.ApiKey.Title}
-          subTitle={Locale.Settings.Access.AI302.ApiKey.SubTitle}
-        >
-          <PasswordInput
-            aria-label={Locale.Settings.Access.AI302.ApiKey.Title}
-            value={accessStore.ai302ApiKey}
-            type="text"
-            placeholder={Locale.Settings.Access.AI302.ApiKey.Placeholder}
-            onChange={(e) => {
-              accessStore.update(
-                (access) => (access.ai302ApiKey = e.currentTarget.value),
-              );
-            }}
-          />
-        </ListItem>
-      </>
+        ></input>
+      </ListItem>
+      <ListItem
+        title={Locale.Settings.Access.AI302.ApiKey.Title}
+        subTitle={Locale.Settings.Access.AI302.ApiKey.SubTitle}
+      >
+        <PasswordInput
+          aria-label={Locale.Settings.Access.AI302.ApiKey.Title}
+          value={accessStore.ai302ApiKey}
+          type="text"
+          placeholder={Locale.Settings.Access.AI302.ApiKey.Placeholder}
+          onChange={(e) => {
+            accessStore.update(
+              (access) => (access.ai302ApiKey = e.currentTarget.value),
+            );
+          }}
+        />
+      </ListItem>
+    </>
   );
 
   return (
@@ -1816,7 +2075,6 @@ export function Settings() {
         </List>
 
         <List id={SlotID.CustomModel}>
-          {saasStartComponent}
           {accessCodeComponent}
 
           {!accessStore.hideUserApiKey && (
@@ -1868,6 +2126,8 @@ export function Settings() {
               )}
             </>
           )}
+
+          {!accessStore.hideUserApiKey && <CustomProviderSettings />}
 
           {!shouldHideBalanceQuery && !clientConfig?.isApp ? (
             <ListItem

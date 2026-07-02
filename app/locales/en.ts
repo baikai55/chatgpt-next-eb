@@ -196,6 +196,11 @@ const en: LocaleType = {
       Title: "Inject System Prompts",
       SubTitle: "Inject a global system prompt for every request",
     },
+    Stream: {
+      Title: "Streaming Output",
+      SubTitle:
+        "Recommended on for chat so you can see tokens as they arrive. Recommended off for image generation, providers without streaming support, or endpoints with unstable compatibility",
+    },
     InputTemplate: {
       Title: "Input Template",
       SubTitle: "Newest message will be filled to this template",
@@ -553,6 +558,26 @@ const en: LocaleType = {
           Title: "Endpoint Address",
           SubTitle: "Example: ",
         },
+      },
+      CustomProvider: {
+        Title: "Custom Providers",
+        SubTitle: "Add and manage custom model providers",
+        AddAction: "Add Provider",
+        EditAction: "Edit Provider",
+        Name: "Provider Name",
+        NamePlaceholder: "Enter provider name",
+        Protocol: "Protocol",
+        ChatPath: "Chat Path",
+        ChatPathSubTitle:
+          "Request path for chat calls. Google protocol supports a {model} placeholder",
+        ChatPathPlaceholder: "v1/chat/completions",
+        Endpoint: "API Endpoint",
+        EndpointPlaceholder: "https://api.example.com/v1",
+        ApiKeyTitle: "API Key",
+        ApiKeyPlaceholder: "Enter API Key",
+        Models: "Models",
+        ModelsPlaceholder: "model1,model2,model3",
+        ModelsCount: "models",
       },
     },
 

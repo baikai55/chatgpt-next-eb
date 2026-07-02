@@ -82,8 +82,40 @@ const DEFAULT_LANG = "en";
 const fallbackLang = en;
 const targetLang = ALL_LANGS[getLang()] as LocaleType;
 
+function sanitizeUnauthorizedMessage(text: string) {
+  const stepPrefixRegex = /^[\s\\]*[0-9]\uFE0F?\u20E3\s*/u;
+  const stepLabels = ["1\uFE0F\u20E3", "2\uFE0F\u20E3", "3\uFE0F\u20E3"];
+  const lines = text
+    .split("\n")
+    .filter(
+      (line) =>
+        !line.includes("nextchat.club") && !line.includes("github.com/"),
+    );
+
+  if (lines.length <= 1) {
+    return text;
+  }
+
+  const [header, ...rest] = lines;
+  const steps = rest
+    .map((line) => line.replace(stepPrefixRegex, "").trim())
+    .filter(Boolean);
+
+  return [header.trimEnd()]
+    .concat(
+      steps.map(
+        (line, index) =>
+          ` ${stepLabels[index] ?? stepLabels[stepLabels.length - 1]} ${line}`,
+      ),
+    )
+    .join("\n");
+}
+
 // if target lang missing some fields, it will use fallback lang string
 merge(fallbackLang, targetLang);
+fallbackLang.Error.Unauthorized = sanitizeUnauthorizedMessage(
+  fallbackLang.Error.Unauthorized,
+);
 
 export default fallbackLang as LocaleType;
 

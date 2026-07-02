@@ -29,6 +29,7 @@ import { ModelSize, DalleQuality, DalleStyle } from "@/app/typing";
 import {
   ChatOptions,
   getHeaders,
+  joinBaseUrlPath,
   LLMApi,
   LLMModel,
   LLMUsage,
@@ -37,6 +38,7 @@ import {
 } from "../api";
 import Locale from "../../locales";
 import { getClientConfig } from "@/app/config/client";
+import type { CustomProvider } from "@/app/store/access";
 import {
   getMessageTextContent,
   isVisionModel,
@@ -44,6 +46,7 @@ import {
   getTimeoutMSByModel,
 } from "@/app/utils";
 import { fetch } from "@/app/utils/stream";
+import { resolveCustomProviderChatPath } from "@/app/utils/custom-provider";
 
 export interface OpenAIListModelResponse {
   object: string;
@@ -81,44 +84,49 @@ export interface DalleRequestPayload {
 
 export class ChatGPTApi implements LLMApi {
   private disableListModels = true;
+  private customProviderConfig?: CustomProvider;
+
+  constructor(customProviderConfig?: CustomProvider) {
+    this.customProviderConfig = customProviderConfig;
+  }
 
   path(path: string): string {
     const accessStore = useAccessStore.getState();
 
     let baseUrl = "";
 
-    const isAzure = path.includes("deployments");
-    if (accessStore.useCustomConfig) {
-      if (isAzure && !accessStore.isValidAzure()) {
-        throw Error(
-          "incomplete azure config, please check it in your settings page",
-        );
+    if (this.customProviderConfig) {
+      baseUrl = this.customProviderConfig.baseUrl;
+    } else {
+      const isAzure = path.includes("deployments");
+      if (accessStore.useCustomConfig) {
+        if (isAzure && !accessStore.isValidAzure()) {
+          throw Error(
+            "incomplete azure config, please check it in your settings page",
+          );
+        }
+
+        baseUrl = isAzure ? accessStore.azureUrl : accessStore.openaiUrl;
       }
 
-      baseUrl = isAzure ? accessStore.azureUrl : accessStore.openaiUrl;
-    }
-
-    if (baseUrl.length === 0) {
-      const isApp = !!getClientConfig()?.isApp;
-      const apiPath = isAzure ? ApiPath.Azure : ApiPath.OpenAI;
-      baseUrl = isApp ? OPENAI_BASE_URL : apiPath;
+      if (baseUrl.length === 0) {
+        const isApp = !!getClientConfig()?.isApp;
+        const apiPath = isAzure ? ApiPath.Azure : ApiPath.OpenAI;
+        baseUrl = isApp ? OPENAI_BASE_URL : apiPath;
+      }
     }
 
     if (baseUrl.endsWith("/")) {
       baseUrl = baseUrl.slice(0, baseUrl.length - 1);
     }
-    if (
-      !baseUrl.startsWith("http") &&
-      !isAzure &&
-      !baseUrl.startsWith(ApiPath.OpenAI)
-    ) {
+    if (!baseUrl.startsWith("http") && !baseUrl.startsWith("/")) {
       baseUrl = "https://" + baseUrl;
     }
 
     console.log("[Proxy Endpoint] ", baseUrl, path);
 
     // try rebuild url, when using cloudflare ai gateway in client
-    return cloudflareAIGatewayUrl([baseUrl, path].join("/"));
+    return cloudflareAIGatewayUrl(joinBaseUrlPath(baseUrl, path));
   }
 
   async extractMessage(res: any) {
@@ -161,11 +169,15 @@ export class ChatGPTApi implements LLMApi {
 
     try {
       const speechPath = this.path(OpenaiPath.SpeechPath);
+      const headers = getHeaders(
+        false,
+        this.customProviderConfig?.name ?? ServiceProvider.OpenAI,
+      );
       const speechPayload = {
         method: "POST",
         body: JSON.stringify(requestPayload),
         signal: controller.signal,
-        headers: getHeaders(),
+        headers,
       };
 
       // make a fetch request
@@ -200,7 +212,7 @@ export class ChatGPTApi implements LLMApi {
       options.config.model.startsWith("o1") ||
       options.config.model.startsWith("o3") ||
       options.config.model.startsWith("o4-mini");
-    const isGpt5 =  options.config.model.startsWith("gpt-5");
+    const isGpt5 = options.config.model.startsWith("gpt-5");
     if (isDalle3) {
       const prompt = getMessageTextContent(
         options.messages.slice(-1)?.pop() as any,
@@ -231,7 +243,7 @@ export class ChatGPTApi implements LLMApi {
         messages,
         stream: options.config.stream,
         model: modelConfig.model,
-        temperature: (!isO1OrO3 && !isGpt5) ? modelConfig.temperature : 1,
+        temperature: !isO1OrO3 && !isGpt5 ? modelConfig.temperature : 1,
         presence_penalty: !isO1OrO3 ? modelConfig.presence_penalty : 0,
         frequency_penalty: !isO1OrO3 ? modelConfig.frequency_penalty : 0,
         top_p: !isO1OrO3 ? modelConfig.top_p : 1,
@@ -240,11 +252,10 @@ export class ChatGPTApi implements LLMApi {
       };
 
       if (isGpt5) {
-  	// Remove max_tokens if present
-  	delete requestPayload.max_tokens;
-  	// Add max_completion_tokens (or max_completion_tokens if that's what you meant)
-  	requestPayload["max_completion_tokens"] = modelConfig.max_tokens;
-
+        // Remove max_tokens if present
+        delete requestPayload.max_tokens;
+        // Add max_completion_tokens (or max_completion_tokens if that's what you meant)
+        requestPayload["max_completion_tokens"] = modelConfig.max_tokens;
       } else if (isO1OrO3) {
         // by default the o1/o3 models will not attempt to produce output that includes markdown formatting
         // manually add "Formatting re-enabled" developer message to encourage markdown inclusion in model responses
@@ -258,9 +269,8 @@ export class ChatGPTApi implements LLMApi {
         requestPayload["max_completion_tokens"] = modelConfig.max_tokens;
       }
 
-
       // add max_tokens to vision model
-      if (visionModel && !isO1OrO3 && ! isGpt5) {
+      if (visionModel && !isO1OrO3 && !isGpt5) {
         requestPayload["max_tokens"] = Math.max(modelConfig.max_tokens, 4000);
       }
     }
@@ -272,6 +282,7 @@ export class ChatGPTApi implements LLMApi {
     options.onController?.(controller);
 
     try {
+      const headers = getHeaders(false, options.config.providerName);
       let chatPath = "";
       if (modelConfig.providerName === ServiceProvider.Azure) {
         // find model, and get displayName as deployName
@@ -300,7 +311,12 @@ export class ChatGPTApi implements LLMApi {
         );
       } else {
         chatPath = this.path(
-          isDalle3 ? OpenaiPath.ImagePath : OpenaiPath.ChatPath,
+          isDalle3
+            ? OpenaiPath.ImagePath
+            : resolveCustomProviderChatPath(
+                this.customProviderConfig,
+                modelConfig.model,
+              ) || OpenaiPath.ChatPath,
         );
       }
       if (shouldStream) {
@@ -314,7 +330,7 @@ export class ChatGPTApi implements LLMApi {
         streamWithThink(
           chatPath,
           requestPayload,
-          getHeaders(),
+          headers,
           tools as any,
           funcs,
           controller,
@@ -407,7 +423,7 @@ export class ChatGPTApi implements LLMApi {
           method: "POST",
           body: JSON.stringify(requestPayload),
           signal: controller.signal,
-          headers: getHeaders(),
+          headers,
         };
 
         // make a fetch request
@@ -447,12 +463,18 @@ export class ChatGPTApi implements LLMApi {
         ),
         {
           method: "GET",
-          headers: getHeaders(),
+          headers: getHeaders(
+            false,
+            this.customProviderConfig?.name ?? ServiceProvider.OpenAI,
+          ),
         },
       ),
       fetch(this.path(OpenaiPath.SubsPath), {
         method: "GET",
-        headers: getHeaders(),
+        headers: getHeaders(
+          false,
+          this.customProviderConfig?.name ?? ServiceProvider.OpenAI,
+        ),
       }),
     ]);
 
@@ -502,7 +524,10 @@ export class ChatGPTApi implements LLMApi {
     const res = await fetch(this.path(OpenaiPath.ListModelPath), {
       method: "GET",
       headers: {
-        ...getHeaders(),
+        ...getHeaders(
+          false,
+          this.customProviderConfig?.name ?? ServiceProvider.OpenAI,
+        ),
       },
     });
 

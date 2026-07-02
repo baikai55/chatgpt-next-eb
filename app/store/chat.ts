@@ -164,7 +164,8 @@ function fillTemplateWith(input: string, modelConfig: ModelConfig) {
   // Find the model in the DEFAULT_MODELS array that matches the modelConfig.model
   const modelInfo = DEFAULT_MODELS.find((m) => m.name === modelConfig.model);
 
-  var serviceProvider = "OpenAI";
+  let serviceProvider: string =
+    modelConfig.providerName || ServiceProvider.OpenAI;
   if (modelInfo) {
     // TODO: auto detect the providerName from the modelConfig.model
 
@@ -460,7 +461,7 @@ export const useChatStore = createPersistStore(
         // make request
         api.llm.chat({
           messages: sendMessages,
-          config: { ...modelConfig, stream: true },
+          config: { ...modelConfig, stream: modelConfig.stream ?? true },
           onUpdate(message) {
             botMessage.streaming = true;
             if (message) {
@@ -773,7 +774,7 @@ export const useChatStore = createPersistStore(
             ),
             config: {
               ...modelcfg,
-              stream: true,
+              stream: modelcfg.stream !== false,
               model,
               providerName,
             },

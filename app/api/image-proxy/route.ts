@@ -1,6 +1,13 @@
+import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 const IMAGE_PROXY_HEADER_TIMEOUT_MS = 55_000;
+const IMAGE_PROXY_BROWSER_CACHE_SECONDS = 86_400;
+const IMAGE_PROXY_STALE_WHILE_REVALIDATE_SECONDS = 604_800;
+const IMAGE_PROXY_MEMORY_CACHE_TTL_MS = 10 * 60 * 1_000;
+const IMAGE_PROXY_MAX_CACHE_ENTRY_BYTES = 10 * 1024 * 1024;
+const IMAGE_PROXY_MAX_CACHE_BYTES = 64 * 1024 * 1024;
+const IMAGE_PROXY_MAX_CACHE_ENTRIES = 64;
 
 const IMAGE_PROXY_HEADERS = {
   Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
@@ -24,6 +31,134 @@ function jsonError(
       },
     },
   );
+}
+
+type CachedImage = {
+  body: Uint8Array;
+  contentType: string;
+  contentLength: number;
+  etag: string;
+  lastModified?: string;
+  expiresAt: number;
+};
+
+type ImageProxyCacheStore = {
+  entries: Map<string, CachedImage>;
+  totalBytes: number;
+};
+
+function getCacheStore() {
+  const globalStore = globalThis as typeof globalThis & {
+    __imageProxyCacheStore?: ImageProxyCacheStore;
+  };
+
+  if (!globalStore.__imageProxyCacheStore) {
+    globalStore.__imageProxyCacheStore = {
+      entries: new Map(),
+      totalBytes: 0,
+    };
+  }
+
+  return globalStore.__imageProxyCacheStore;
+}
+
+function removeCacheEntry(url: string) {
+  const store = getCacheStore();
+  const cached = store.entries.get(url);
+
+  if (!cached) return;
+
+  store.totalBytes -= cached.contentLength;
+  store.entries.delete(url);
+}
+
+function getCachedImage(url: string) {
+  const store = getCacheStore();
+  const cached = store.entries.get(url);
+
+  if (!cached) return null;
+
+  if (cached.expiresAt <= Date.now()) {
+    removeCacheEntry(url);
+    return null;
+  }
+
+  // Refresh LRU order.
+  store.entries.delete(url);
+  store.entries.set(url, cached);
+  return cached;
+}
+
+function setCachedImage(url: string, cached: CachedImage) {
+  if (cached.contentLength > IMAGE_PROXY_MAX_CACHE_ENTRY_BYTES) {
+    removeCacheEntry(url);
+    return;
+  }
+
+  const store = getCacheStore();
+  removeCacheEntry(url);
+  store.entries.set(url, cached);
+  store.totalBytes += cached.contentLength;
+
+  while (
+    store.entries.size > IMAGE_PROXY_MAX_CACHE_ENTRIES ||
+    store.totalBytes > IMAGE_PROXY_MAX_CACHE_BYTES
+  ) {
+    const oldestKey = store.entries.keys().next().value;
+    if (!oldestKey) break;
+    removeCacheEntry(oldestKey);
+  }
+}
+
+function makeEtag(body: Uint8Array) {
+  return `"${createHash("sha1").update(body).digest("base64url")}"`;
+}
+
+function createImageHeaders(
+  cached: Pick<CachedImage, "contentType" | "etag"> & {
+    contentLength?: number;
+    lastModified?: string;
+  },
+) {
+  const headers = new Headers({
+    "Content-Type": cached.contentType,
+    "Cache-Control": `public, max-age=${IMAGE_PROXY_BROWSER_CACHE_SECONDS}, s-maxage=${IMAGE_PROXY_BROWSER_CACHE_SECONDS}, stale-while-revalidate=${IMAGE_PROXY_STALE_WHILE_REVALIDATE_SECONDS}, immutable`,
+    ETag: cached.etag,
+    "Access-Control-Allow-Origin": "*",
+  });
+
+  if (typeof cached.contentLength === "number") {
+    headers.set("Content-Length", String(cached.contentLength));
+  }
+
+  if (cached.lastModified) {
+    headers.set("Last-Modified", cached.lastModified);
+  }
+
+  return headers;
+}
+
+function isNotModified(req: NextRequest, cached: CachedImage) {
+  const ifNoneMatch = req.headers.get("if-none-match");
+  if (ifNoneMatch) {
+    return ifNoneMatch
+      .split(",")
+      .map((item) => item.trim())
+      .includes(cached.etag);
+  }
+
+  const ifModifiedSince = req.headers.get("if-modified-since");
+  if (ifModifiedSince && cached.lastModified) {
+    const since = Date.parse(ifModifiedSince);
+    const lastModified = Date.parse(cached.lastModified);
+    return (
+      !Number.isNaN(since) &&
+      !Number.isNaN(lastModified) &&
+      since >= lastModified
+    );
+  }
+
+  return false;
 }
 
 function isBlockedHostname(hostname: string) {
@@ -73,13 +208,30 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const targetUrl = target.toString();
+    const cachedImage = getCachedImage(targetUrl);
+
+    if (cachedImage) {
+      if (isNotModified(req, cachedImage)) {
+        return new Response(null, {
+          status: 304,
+          headers: createImageHeaders(cachedImage),
+        });
+      }
+
+      return new Response(cachedImage.body.slice(), {
+        status: 200,
+        headers: createImageHeaders(cachedImage),
+      });
+    }
+
     // Timeout only while waiting for headers; slow image bodies should stream.
     const controller = new AbortController();
     const headerTimeout = setTimeout(() => {
       controller.abort();
     }, IMAGE_PROXY_HEADER_TIMEOUT_MS);
 
-    const upstream = await fetch(target.toString(), {
+    const upstream = await fetch(targetUrl, {
       headers: {
         ...IMAGE_PROXY_HEADERS,
         Referer: `${target.origin}/`,
@@ -109,13 +261,23 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    return new Response(upstream.body, {
+    // Buffer once so repeated preview opens can hit in-process cache
+    // instead of re-fetching the origin image.
+    const body = new Uint8Array(await upstream.arrayBuffer());
+    const cached: CachedImage = {
+      body,
+      contentType,
+      contentLength: body.byteLength,
+      etag: upstream.headers.get("etag") || makeEtag(body),
+      lastModified: upstream.headers.get("last-modified") || undefined,
+      expiresAt: Date.now() + IMAGE_PROXY_MEMORY_CACHE_TTL_MS,
+    };
+
+    setCachedImage(targetUrl, cached);
+
+    return new Response(body.slice(), {
       status: 200,
-      headers: {
-        "Content-Type": contentType,
-        "Cache-Control": "public, max-age=86400, s-maxage=86400",
-        "Access-Control-Allow-Origin": "*",
-      },
+      headers: createImageHeaders(cached),
     });
   } catch (error) {
     console.error("[Image Proxy]", error);

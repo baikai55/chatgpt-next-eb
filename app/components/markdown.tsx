@@ -289,13 +289,36 @@ function _MarkDownContent(props: { content: string }) {
         pre: PreCode,
         code: CustomCode,
         p: (pProps) => <p {...pProps} dir="auto" />,
-        img: (imgProps) => (
-          <img
-            {...imgProps}
-            src={proxiedImageUrl(imgProps.src)}
-            alt={imgProps.alt ?? ""}
-          />
-        ),
+        img: (imgProps) => {
+          const previewSrc = imgProps.src ?? "";
+          const imageSrc = proxiedImageUrl(previewSrc);
+
+          const previewImage = () => {
+            if (!previewSrc) return;
+            showImageModal(previewSrc);
+          };
+
+          return (
+            <img
+              {...imgProps}
+              src={imageSrc}
+              alt={imgProps.alt ?? ""}
+              role={previewSrc ? "button" : undefined}
+              tabIndex={previewSrc ? 0 : -1}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                previewImage();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  previewImage();
+                }
+              }}
+            />
+          );
+        },
         a: (aProps) => {
           const href = aProps.href || "";
           if (/\.(aac|mp3|opus|wav)$/.test(href)) {

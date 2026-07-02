@@ -1,6 +1,6 @@
 <div align="center">
 
-<a href='https://nextchat.club'>
+<a href='https://github.com/baikai55/chatgpt-next-eb'>
   <img src="https://github.com/user-attachments/assets/83bdcc07-ae5e-4954-a53a-ac151ba6ccf3" width="1000" alt="icon"/>
 </a>
 
@@ -12,26 +12,18 @@ English / [简体中文](./README_CN.md)
 
 ✨ Light and Fast AI Assistant,with Claude, DeepSeek, GPT4 & Gemini Pro support.
 
-[![Saas][Saas-image]][saas-url]
-[![Web][Web-image]][web-url]
 [![Windows][Windows-image]][download-url]
 [![MacOS][MacOS-image]][download-url]
 [![Linux][Linux-image]][download-url]
 
-[NextChatAI](https://nextchat.club?utm_source=readme) / [iOS APP](https://apps.apple.com/us/app/nextchat-ai/id6743085599) / [Web App Demo](https://app.nextchat.club) / [Desktop App](https://github.com/Yidadaa/ChatGPT-Next-Web/releases) / [Enterprise Edition](#enterprise-edition)
+[GitHub](https://github.com/baikai55/chatgpt-next-eb) / [Releases](https://github.com/baikai55/chatgpt-next-eb/releases) / [Issues](https://github.com/baikai55/chatgpt-next-eb/issues)
 
-[saas-url]: https://nextchat.club?utm_source=readme
-[saas-image]: https://img.shields.io/badge/NextChat-Saas-green?logo=microsoftedge
-[web-url]: https://app.nextchat.club/
-[download-url]: https://github.com/Yidadaa/ChatGPT-Next-Web/releases
-[Web-image]: https://img.shields.io/badge/Web-PWA-orange?logo=microsoftedge
+[download-url]: https://github.com/baikai55/chatgpt-next-eb/releases
 [Windows-image]: https://img.shields.io/badge/-Windows-blue?logo=windows
 [MacOS-image]: https://img.shields.io/badge/-MacOS-black?logo=apple
 [Linux-image]: https://img.shields.io/badge/-Linux-333?logo=ubuntu
 
-[<img src="https://zeabur.com/button.svg" alt="Deploy on Zeabur" height="30">](https://zeabur.com/templates/ZBUEFA) [<img src="https://vercel.com/button" alt="Deploy on Vercel" height="30">](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FChatGPTNextWeb%2FChatGPT-Next-Web&env=OPENAI_API_KEY&env=CODE&project-name=nextchat&repository-name=NextChat) [<img src="https://gitpod.io/button/open-in-gitpod.svg" alt="Open in Gitpod" height="30">](https://gitpod.io/#https://github.com/ChatGPTNextWeb/NextChat) [<img src="https://oss.opendeploy.dev/static/deploy-with-your-agent.svg" alt="Deploy with your agent" height="30">](https://opendeploy.dev/github/ChatGPTNextWeb/NextChat)
-
-[<img src="https://github.com/user-attachments/assets/903482d4-3e87-4134-9af1-f2588fa90659" height="50" width="" >](https://monica.im/?utm=nxcrp)
+[<img src="https://zeabur.com/button.svg" alt="Deploy on Zeabur" height="30">](https://zeabur.com/templates/ZBUEFA) [<img src="https://vercel.com/button" alt="Deploy on Vercel" height="30">](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbaikai55%2Fchatgpt-next-eb&env=OPENAI_API_KEY&env=CODE&project-name=chatgpt-next-eb&repository-name=chatgpt-next-eb) [<img src="https://gitpod.io/button/open-in-gitpod.svg" alt="Open in Gitpod" height="30">](https://gitpod.io/#https://github.com/baikai55/chatgpt-next-eb) [<img src="https://oss.opendeploy.dev/static/deploy-with-your-agent.svg" alt="Deploy with your agent" height="30">](https://opendeploy.dev/github/baikai55/chatgpt-next-eb)
 
 </div>
 
@@ -47,7 +39,7 @@ English / [简体中文](./README_CN.md)
 
 > [👉 Click Here to Install Now](https://apps.apple.com/us/app/nextchat-ai/id6743085599)
 
-> [❤️ Source Code Coming Soon](https://github.com/ChatGPTNextWeb/NextChat-iOS)
+> Source code is maintained in this repository.
 
 ![Github iOS Image](https://github.com/user-attachments/assets/e0aa334f-4c13-4dc9-8310-e3b09fa4b9f3)
 
@@ -80,7 +72,7 @@ For enterprise inquiries, please contact: **business@nextchat.dev**
 ## Features
 
 - **Deploy for free with one-click** on Vercel in under 1 minute
-- Compact client (~5MB) on Linux/Windows/MacOS, [download it now](https://github.com/Yidadaa/ChatGPT-Next-Web/releases)
+- Compact client (~5MB) on Linux/Windows/MacOS, [download it now](https://github.com/baikai55/chatgpt-next-eb/releases)
 - Fully compatible with self-deployed LLMs, recommended for use with [RWKV-Runner](https://github.com/josStorer/RWKV-Runner) or [LocalAI](https://github.com/go-skynet/LocalAI)
 - Privacy first, all data is stored locally in the browser
 - Markdown support: LaTex, mermaid, code highlight, etc.
@@ -115,7 +107,7 @@ For enterprise inquiries, please contact: **business@nextchat.dev**
 
 - 🚀 v2.15.8 Now supports Realtime Chat [#5672](https://github.com/ChatGPTNextWeb/ChatGPT-Next-Web/issues/5672)
 - 🚀 v2.15.4 The Application supports using Tauri fetch LLM API, MORE SECURITY! [#5379](https://github.com/ChatGPTNextWeb/ChatGPT-Next-Web/issues/5379)
-- 🚀 v2.15.0 Now supports Plugins! Read this: [NextChat-Awesome-Plugins](https://github.com/ChatGPTNextWeb/NextChat-Awesome-Plugins)
+- 🚀 v2.15.0 Now supports Plugins!
 - 🚀 v2.14.0 Now supports Artifacts & SD
 - 🚀 v2.10.1 support Google Gemini Pro model.
 - 🚀 v2.9.11 you can use azure endpoint now.
@@ -381,7 +373,7 @@ NodeJS >= 18, Docker >= 20
 
 ## Development
 
-[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/Yidadaa/ChatGPT-Next-Web)
+[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/baikai55/chatgpt-next-eb)
 
 Before starting development, you must create a new `.env.local` file at project root, and place your api key into it:
 
@@ -444,7 +436,7 @@ docker run -d -p 3000:3000 \
 ### Shell
 
 ```shell
-bash <(curl -s https://raw.githubusercontent.com/Yidadaa/ChatGPT-Next-Web/main/scripts/setup.sh)
+bash <(curl -s https://raw.githubusercontent.com/baikai55/chatgpt-next-eb/main/scripts/setup.sh)
 ```
 
 ## Synchronizing Chat Records (UpStash)
@@ -473,8 +465,8 @@ If you want to add a new translation, read this [document](./docs/translation.md
 
 ### Contributors
 
-<a href="https://github.com/ChatGPTNextWeb/ChatGPT-Next-Web/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=ChatGPTNextWeb/ChatGPT-Next-Web" />
+<a href="https://github.com/baikai55/chatgpt-next-eb/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=baikai55/chatgpt-next-eb" />
 </a>
 
 ## LICENSE

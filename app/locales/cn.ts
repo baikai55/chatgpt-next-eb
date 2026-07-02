@@ -190,6 +190,11 @@ const cn = {
       SubTitle: "聊天内容的字体，若置空则应用全局默认字体",
       Placeholder: "字体名称",
     },
+    Stream: {
+      Title: "流式响应",
+      SubTitle:
+        "聊天场景通常建议开启，可更快看到逐字输出；生图、部分不支持流式的接口或兼容性不稳定的服务商建议关闭，等待完整结果后一次性显示",
+    },
     InjectSystemPrompts: {
       Title: "注入系统级提示信息",
       SubTitle: "强制给每次请求的消息列表开头添加一个模拟 ChatGPT 的系统提示",
@@ -548,6 +553,25 @@ const cn = {
           Title: "接口地址",
           SubTitle: "样例：",
         },
+      },
+      CustomProvider: {
+        Title: "自定义服务商",
+        SubTitle: "添加和管理自定义模型服务商",
+        AddAction: "添加",
+        EditAction: "编辑",
+        Name: "服务商名称",
+        NamePlaceholder: "输入服务商名称",
+        Protocol: "接口协议",
+        ChatPath: "聊天路径",
+        Endpoint: "API 地址",
+        EndpointPlaceholder: "https://api.example.com/v1",
+        ChatPathSubTitle: "聊天请求的路径，Google 协议可使用 {model} 占位符",
+        ChatPathPlaceholder: "v1/chat/completions",
+        ApiKeyTitle: "API Key",
+        ApiKeyPlaceholder: "输入 API Key",
+        Models: "模型列表",
+        ModelsPlaceholder: "model-1,model-2,model-3",
+        ModelsCount: "个模型",
       },
     },
 

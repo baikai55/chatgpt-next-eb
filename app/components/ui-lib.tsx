@@ -137,6 +137,7 @@ export function Modal(props: ModalProps) {
   }, []);
 
   const [isMax, setMax] = useState(!!props.defaultMax);
+  const hasFooter = !!props.footer || (props.actions?.length ?? 0) > 0;
 
   return (
     <div
@@ -165,16 +166,18 @@ export function Modal(props: ModalProps) {
 
       <div className={styles["modal-content"]}>{props.children}</div>
 
-      <div className={styles["modal-footer"]}>
-        {props.footer}
-        <div className={styles["modal-actions"]}>
-          {props.actions?.map((action, i) => (
-            <div key={i} className={styles["modal-action"]}>
-              {action}
-            </div>
-          ))}
+      {hasFooter && (
+        <div className={styles["modal-footer"]}>
+          {props.footer}
+          <div className={styles["modal-actions"]}>
+            {props.actions?.map((action, i) => (
+              <div key={i} className={styles["modal-action"]}>
+                {action}
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -274,6 +277,8 @@ export function PasswordInput(
   props: HTMLProps<HTMLInputElement> & { aria?: string },
 ) {
   const [visible, setVisible] = useState(false);
+  const { aria, ...inputProps } = props;
+
   function changeVisibility() {
     setVisible(!visible);
   }
@@ -281,13 +286,13 @@ export function PasswordInput(
   return (
     <div className={"password-input-container"}>
       <IconButton
-        aria={props.aria}
+        aria={aria}
         icon={visible ? <EyeIcon /> : <EyeOffIcon />}
         onClick={changeVisibility}
         className={"password-eye"}
       />
       <input
-        {...props}
+        {...inputProps}
         type={visible ? "text" : "password"}
         className={"password-input"}
       />
@@ -458,15 +463,26 @@ export function showImageModal(
 ) {
   showModal({
     title: Locale.Export.Image.Modal,
-    defaultMax: defaultMax,
+    defaultMax: defaultMax ?? true,
     children: (
-      <div style={{ display: "flex", justifyContent: "center", ...boxStyle }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          width: "100%",
+          height: "100%",
+          ...boxStyle,
+        }}
+      >
         <img
           src={proxiedImageUrl(img)}
           alt="preview"
           style={
             style ?? {
               maxWidth: "100%",
+              maxHeight: "100%",
+              objectFit: "contain",
             }
           }
         ></img>

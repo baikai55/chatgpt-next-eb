@@ -1,3 +1,15 @@
+export type CustomProviderProtocol = "openai" | "anthropic" | "google";
+
+export interface CustomProvider {
+  id: string;
+  name: string;
+  protocol: CustomProviderProtocol;
+  baseUrl: string;
+  chatPath: string;
+  apiKey: string;
+  models: string[];
+}
+
 import {
   GoogleSafetySettingsThreshold,
   ServiceProvider,
@@ -23,6 +35,7 @@ import { getHeaders } from "../client/api";
 import { getClientConfig } from "../config/client";
 import { createPersistStore } from "../utils/store";
 import { ensure } from "../utils/clone";
+import { getDefaultCustomProviderChatPath } from "../utils/custom-provider";
 import { DEFAULT_CONFIG } from "./config";
 import { getModelProvider } from "../utils/model";
 
@@ -139,6 +152,9 @@ const DEFAULT_ACCESS_STATE = {
   ai302Url: DEFAULT_AI302_URL,
   ai302ApiKey: "",
 
+  // custom providers
+  customProviders: [] as CustomProvider[],
+
   // server config
   needCode: true,
   hideUserApiKey: false,
@@ -226,6 +242,28 @@ export const useAccessStore = createPersistStore(
       return ensure(get(), ["siliconflowApiKey"]);
     },
 
+    isValidCustomProvider(id: string) {
+      const provider = get().customProviders.find((p) => p.id === id);
+      return !!provider?.apiKey;
+    },
+
+    addCustomProvider(provider: CustomProvider) {
+      const providers = [...get().customProviders, provider];
+      set(() => ({ customProviders: providers }));
+    },
+
+    removeCustomProvider(id: string) {
+      const providers = get().customProviders.filter((p) => p.id !== id);
+      set(() => ({ customProviders: providers }));
+    },
+
+    updateCustomProvider(id: string, updates: Partial<CustomProvider>) {
+      const providers = get().customProviders.map((p) =>
+        p.id === id ? { ...p, ...updates } : p,
+      );
+      set(() => ({ customProviders: providers }));
+    },
+
     isAuthorized() {
       this.fetch();
 
@@ -245,6 +283,7 @@ export const useAccessStore = createPersistStore(
         this.isValidXAI() ||
         this.isValidChatGLM() ||
         this.isValidSiliconFlow() ||
+        get().customProviders.some((p) => !!p.apiKey) ||
         !this.enabledAccessControl() ||
         (this.enabledAccessControl() && ensure(get(), ["accessCode"]))
       );
@@ -284,7 +323,7 @@ export const useAccessStore = createPersistStore(
   }),
   {
     name: StoreKey.Access,
-    version: 2,
+    version: 3,
     migrate(persistedState, version) {
       if (version < 2) {
         const state = persistedState as {
@@ -295,6 +334,23 @@ export const useAccessStore = createPersistStore(
         };
         state.openaiApiKey = state.token;
         state.azureApiVersion = "2023-08-01-preview";
+      }
+
+      if (version < 3) {
+        const state = persistedState as {
+          customProviders?: Array<
+            Partial<CustomProvider> & Pick<CustomProvider, "protocol">
+          >;
+        };
+
+        state.customProviders = (state.customProviders ?? []).map(
+          (provider) => ({
+            ...provider,
+            chatPath:
+              provider.chatPath ??
+              getDefaultCustomProviderChatPath(provider.protocol),
+          }),
+        );
       }
 
       return persistedState as any;

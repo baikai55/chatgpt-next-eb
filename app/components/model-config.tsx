@@ -110,6 +110,22 @@ export function ModelConfigList(props: {
         ></input>
       </ListItem>
 
+      <ListItem
+        title={Locale.Settings.Stream.Title}
+        subTitle={Locale.Settings.Stream.SubTitle}
+      >
+        <input
+          aria-label={Locale.Settings.Stream.Title}
+          type="checkbox"
+          checked={props.modelConfig.stream !== false}
+          onChange={(e) =>
+            props.updateConfig(
+              (config) => (config.stream = e.currentTarget.checked),
+            )
+          }
+        ></input>
+      </ListItem>
+
       {props.modelConfig?.providerName == ServiceProvider.Google ? null : (
         <>
           <ListItem

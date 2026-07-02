@@ -73,6 +73,42 @@
   }
 }
 
+.custom-provider-modal {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.custom-provider-field {
+  flex: 1 1 auto;
+  width: auto !important;
+  max-width: unset !important;
+  min-width: 0;
+  margin-left: 20px;
+  text-align: left;
+
+  input,
+  textarea,
+  select {
+    width: 100%;
+    max-width: unset;
+    text-align: left;
+    box-sizing: border-box;
+  }
+
+  :global(.password-input-container) {
+    width: 100%;
+    max-width: unset;
+  }
+
+  :global(.password-input) {
+    width: 100%;
+    max-width: unset;
+    min-width: 0;
+    text-align: left;
+  }
+}
+
 .subtitle-button {
   button {
     overflow:visible ;

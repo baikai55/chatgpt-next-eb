@@ -1,5 +1,11 @@
 import { Anthropic, ApiPath } from "@/app/constant";
-import { ChatOptions, getHeaders, LLMApi, SpeechOptions } from "../api";
+import {
+  ChatOptions,
+  getHeaders,
+  joinBaseUrlPath,
+  LLMApi,
+  SpeechOptions,
+} from "../api";
 import {
   useAccessStore,
   useAppConfig,
@@ -14,6 +20,8 @@ import { preProcessImageContent, stream } from "@/app/utils/chat";
 import { cloudflareAIGatewayUrl } from "@/app/utils/cloudflare";
 import { RequestPayload } from "./openai";
 import { fetch } from "@/app/utils/stream";
+import type { CustomProvider } from "@/app/store/access";
+import { resolveCustomProviderChatPath } from "@/app/utils/custom-provider";
 
 export type MultiBlockContent = {
   type: "image" | "text";
@@ -74,6 +82,12 @@ const ClaudeMapper = {
 const keys = ["claude-2, claude-instant-1"];
 
 export class ClaudeApi implements LLMApi {
+  private customProviderConfig?: CustomProvider;
+
+  constructor(customProviderConfig?: CustomProvider) {
+    this.customProviderConfig = customProviderConfig;
+  }
+
   speech(options: SpeechOptions): Promise<ArrayBuffer> {
     throw new Error("Method not implemented.");
   }
@@ -87,6 +101,7 @@ export class ClaudeApi implements LLMApi {
     const visionModel = isVisionModel(options.config.model);
 
     const accessStore = useAccessStore.getState();
+    const headers = getHeaders(false, options.config.providerName);
 
     const shouldStream = !!options.config.stream;
 
@@ -191,7 +206,12 @@ export class ClaudeApi implements LLMApi {
       top_k: 5,
     };
 
-    const path = this.path(Anthropic.ChatPath);
+    const path = this.path(
+      resolveCustomProviderChatPath(
+        this.customProviderConfig,
+        modelConfig.model,
+      ) || Anthropic.ChatPath,
+    );
 
     const controller = new AbortController();
     options.onController?.(controller);
@@ -207,7 +227,7 @@ export class ClaudeApi implements LLMApi {
         path,
         requestBody,
         {
-          ...getHeaders(),
+          ...headers,
           "anthropic-version": accessStore.anthropicApiVersion,
         },
         // @ts-ignore
@@ -224,7 +244,11 @@ export class ClaudeApi implements LLMApi {
           let chunkJson:
             | undefined
             | {
-                type: "content_block_delta" | "content_block_stop" | "message_delta" | "message_stop";
+                type:
+                  | "content_block_delta"
+                  | "content_block_stop"
+                  | "message_delta"
+                  | "message_stop";
                 content_block?: {
                   type: "tool_use";
                   id: string;
@@ -243,8 +267,11 @@ export class ClaudeApi implements LLMApi {
           // Handle refusal stop reason in message_delta
           if (chunkJson?.delta?.stop_reason === "refusal") {
             // Return a message to display to the user
-            const refusalMessage = "\n\n[Assistant refused to respond. Please modify your request and try again.]";
-            options.onError?.(new Error("Content policy violation: " + refusalMessage));
+            const refusalMessage =
+              "\n\n[Assistant refused to respond. Please modify your request and try again.]";
+            options.onError?.(
+              new Error("Content policy violation: " + refusalMessage),
+            );
             return refusalMessage;
           }
 
@@ -318,7 +345,7 @@ export class ClaudeApi implements LLMApi {
         body: JSON.stringify(requestBody),
         signal: controller.signal,
         headers: {
-          ...getHeaders(), // get common headers
+          ...headers, // get common headers
           "anthropic-version": accessStore.anthropicApiVersion,
           // do not send `anthropicApiKey` in browser!!!
           // Authorization: getAuthKey(accessStore.anthropicApiKey),
@@ -391,7 +418,9 @@ export class ClaudeApi implements LLMApi {
 
     let baseUrl: string = "";
 
-    if (accessStore.useCustomConfig) {
+    if (this.customProviderConfig) {
+      baseUrl = this.customProviderConfig.baseUrl;
+    } else if (accessStore.useCustomConfig) {
       baseUrl = accessStore.anthropicUrl;
     }
 
@@ -402,14 +431,14 @@ export class ClaudeApi implements LLMApi {
       baseUrl = isApp ? ANTHROPIC_BASE_URL : ApiPath.Anthropic;
     }
 
-    if (!baseUrl.startsWith("http") && !baseUrl.startsWith("/api")) {
+    if (!baseUrl.startsWith("http") && !baseUrl.startsWith("/")) {
       baseUrl = "https://" + baseUrl;
     }
 
     baseUrl = trimEnd(baseUrl, "/");
 
     // try rebuild url, when using cloudflare ai gateway in client
-    return cloudflareAIGatewayUrl(`${baseUrl}/${path}`);
+    return cloudflareAIGatewayUrl(joinBaseUrlPath(baseUrl, path));
   }
 }
 

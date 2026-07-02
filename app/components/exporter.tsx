@@ -35,7 +35,7 @@ import NextImage from "next/image";
 import { toBlob, toPng } from "html-to-image";
 
 import { prettyObject } from "../utils/format";
-import { EXPORT_MESSAGE_CLASS_NAME } from "../constant";
+import { EXPORT_MESSAGE_CLASS_NAME, REPO_URL } from "../constant";
 import { getClientConfig } from "../config/client";
 import { type ClientApi, getClientApi } from "../client/api";
 import { getMessageTextContent } from "../utils";
@@ -527,7 +527,7 @@ export function ImagePreviewer(props: {
           <div>
             <div className={styles["main-title"]}>NextChat</div>
             <div className={styles["sub-title"]}>
-              github.com/ChatGPTNextWeb/ChatGPT-Next-Web
+              {REPO_URL.replace(/^https?:\/\//, "")}
             </div>
             <div className={styles["icons"]}>
               <MaskAvatar avatar={config.avatar} />
