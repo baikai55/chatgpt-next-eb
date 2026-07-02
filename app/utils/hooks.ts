@@ -7,12 +7,16 @@ export function useAllModels() {
   const configStore = useAppConfig();
   const models = useMemo(() => {
     const customProviderModels = (accessStore.customProviders ?? [])
-      .flatMap((provider) =>
-        provider.models
-          .map((model) => model.trim())
+      .flatMap((provider) => {
+        // models may be corrupted (non-array) from older imports, guard it
+        const models = Array.isArray(provider.models)
+          ? provider.models
+          : Object.values(provider.models ?? {});
+        return models
+          .map((model) => String(model).trim())
           .filter((model) => model.length > 0)
-          .map((model) => `${model}@${provider.name}`),
-      )
+          .map((model) => `${model}@${provider.name}`);
+      })
       .join(",");
 
     return collectModelsWithDefaultModel(
