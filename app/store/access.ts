@@ -323,7 +323,7 @@ export const useAccessStore = createPersistStore(
   }),
   {
     name: StoreKey.Access,
-    version: 3,
+    version: 4,
     migrate(persistedState, version) {
       if (version < 2) {
         const state = persistedState as {
@@ -350,6 +350,36 @@ export const useAccessStore = createPersistStore(
               provider.chatPath ??
               getDefaultCustomProviderChatPath(provider.protocol),
           }),
+        );
+      }
+
+      if (version < 4) {
+        // a previous deep-merge bug (import/sync) could turn
+        // customProviders[].models from ["a","b"] into { 0: "a", 1: "b" },
+        // which crashes callers doing .map/.join/.length. Normalize back
+        // to a string array.
+        const state = persistedState as {
+          customProviders?: Array<Partial<CustomProvider>>;
+        };
+
+        state.customProviders = (state.customProviders ?? []).map(
+          (provider) => {
+            const models = provider.models;
+            let normalized: string[];
+            if (Array.isArray(models)) {
+              normalized = models;
+            } else if (models && typeof models === "object") {
+              normalized = Object.values(models as Record<string, string>);
+            } else if (typeof models === "string") {
+              normalized = (models as string)
+                .split(/[\n,]/)
+                .map((m) => m.trim())
+                .filter(Boolean);
+            } else {
+              normalized = [];
+            }
+            return { ...provider, models: normalized };
+          },
         );
       }
 
