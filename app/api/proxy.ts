@@ -1,5 +1,53 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSideConfig } from "@/app/config/server";
+import { cloudflareAIGatewayUrl } from "@/app/utils/cloudflare";
+
+function joinBaseUrlPath(baseUrl: string, path: string): string {
+  const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
+  const normalizedPath = path.replace(/^\/+/, "");
+  const pathSegments = normalizedPath.split("/");
+  const baseLastSegment = normalizedBaseUrl.split("/").filter(Boolean).pop();
+
+  if (baseLastSegment && pathSegments[0] === baseLastSegment) {
+    pathSegments.shift();
+  }
+
+  return [normalizedBaseUrl, pathSegments.join("/")].filter(Boolean).join("/");
+}
+
+function buildFetchUrl(req: NextRequest, baseUrl: string, subpath: string) {
+  const fetchUrl = cloudflareAIGatewayUrl(joinBaseUrlPath(baseUrl, subpath));
+  const searchParams = new URLSearchParams(req.nextUrl.searchParams);
+  searchParams.delete("path");
+  searchParams.delete("provider");
+
+  const query = searchParams.toString();
+
+  if (!query) return fetchUrl;
+
+  return `${fetchUrl}${fetchUrl.includes("?") ? "&" : "?"}${query}`;
+}
+
+function shouldSkipHeader(name: string) {
+  const lowerName = name.toLowerCase();
+  const skipHeaders = new Set([
+    "connection",
+    "accept-encoding",
+    "host",
+    "origin",
+    "referer",
+    "cookie",
+    "x-base-url",
+    "x-real-ip",
+  ]);
+
+  return (
+    skipHeaders.has(lowerName) ||
+    lowerName.startsWith("sec-") ||
+    lowerName.startsWith("x-forwarded-") ||
+    lowerName.startsWith("x-vercel-")
+  );
+}
 
 export async function handle(
   req: NextRequest,
@@ -12,38 +60,32 @@ export async function handle(
   }
   const serverConfig = getServerSideConfig();
 
-  // remove path params from searchParams
-  req.nextUrl.searchParams.delete("path");
-  req.nextUrl.searchParams.delete("provider");
-
+  const baseUrl = req.headers.get("x-base-url");
+  if (!baseUrl) {
+    return NextResponse.json(
+      { error: "Missing x-base-url header" },
+      { status: 400 },
+    );
+  }
   const subpath = params.path.join("/");
-  const fetchUrl = `${req.headers.get(
-    "x-base-url",
-  )}/${subpath}?${req.nextUrl.searchParams.toString()}`;
-  const skipHeaders = ["connection", "host", "origin", "referer", "cookie"];
+  const fetchUrl = buildFetchUrl(req, baseUrl, subpath);
   const headers = new Headers(
     Array.from(req.headers.entries()).filter((item) => {
-      if (
-        item[0].indexOf("x-") > -1 ||
-        item[0].indexOf("sec-") > -1 ||
-        skipHeaders.includes(item[0])
-      ) {
-        return false;
-      }
-      return true;
+      return !shouldSkipHeader(item[0]);
     }),
   );
+  headers.set("Accept-Encoding", "identity");
+
   // if dalle3 use openai api key
-    const baseUrl = req.headers.get("x-base-url");
-    if (baseUrl?.includes("api.openai.com")) {
-      if (!serverConfig.apiKey) {
-        return NextResponse.json(
-          { error: "OpenAI API key not configured" },
-          { status: 500 },
-        );
-      }
-      headers.set("Authorization", `Bearer ${serverConfig.apiKey}`);
+  if (baseUrl.includes("api.openai.com") && !headers.has("Authorization")) {
+    if (!serverConfig.apiKey) {
+      return NextResponse.json(
+        { error: "OpenAI API key not configured" },
+        { status: 500 },
+      );
     }
+    headers.set("Authorization", `Bearer ${serverConfig.apiKey}`);
+  }
 
   const controller = new AbortController();
   const fetchOptions: RequestInit = {

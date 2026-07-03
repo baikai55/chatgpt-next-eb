@@ -1,11 +1,16 @@
 import { Anthropic, Google, OpenaiPath } from "../constant";
+import { getClientConfig } from "../config/client";
 
 type CustomProviderProtocol = "openai" | "anthropic" | "google";
 
 type CustomProviderLike = {
   protocol: CustomProviderProtocol;
+  baseUrl?: string;
   chatPath?: string;
 };
+
+const CUSTOM_PROVIDER_PROXY_PATH = "/api/proxy";
+const HTTP_URL_REGEXP = /^https?:\/\//i;
 
 export const OPENAI_PATH_PRESETS: { label: string; value: string }[] = [
   {
@@ -69,4 +74,33 @@ export function resolveCustomProviderChatPath(
   return provider.protocol === "google"
     ? chatPath.replaceAll("{model}", model)
     : chatPath;
+}
+
+export function normalizeCustomProviderBaseUrl(baseUrl: string = "") {
+  let normalizedBaseUrl = baseUrl.trim();
+
+  if (normalizedBaseUrl.endsWith("/")) {
+    normalizedBaseUrl = normalizedBaseUrl.replace(/\/+$/, "");
+  }
+
+  if (
+    normalizedBaseUrl &&
+    !normalizedBaseUrl.startsWith("/") &&
+    !HTTP_URL_REGEXP.test(normalizedBaseUrl)
+  ) {
+    normalizedBaseUrl = `https://${normalizedBaseUrl}`;
+  }
+
+  return normalizedBaseUrl;
+}
+
+export function shouldProxyCustomProvider(provider?: CustomProviderLike) {
+  if (!provider) return false;
+  if (getClientConfig()?.isApp) return false;
+
+  return HTTP_URL_REGEXP.test(normalizeCustomProviderBaseUrl(provider.baseUrl));
+}
+
+export function getCustomProviderProxyPath(path: string) {
+  return `${CUSTOM_PROVIDER_PROXY_PATH}/${path.replace(/^\/+/, "")}`;
 }

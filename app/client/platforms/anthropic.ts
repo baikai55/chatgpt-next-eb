@@ -21,7 +21,11 @@ import { cloudflareAIGatewayUrl } from "@/app/utils/cloudflare";
 import { RequestPayload } from "./openai";
 import { fetch } from "@/app/utils/stream";
 import type { CustomProvider } from "@/app/store/access";
-import { resolveCustomProviderChatPath } from "@/app/utils/custom-provider";
+import {
+  getCustomProviderProxyPath,
+  resolveCustomProviderChatPath,
+  shouldProxyCustomProvider,
+} from "@/app/utils/custom-provider";
 
 export type MultiBlockContent = {
   type: "image" | "text";
@@ -436,6 +440,13 @@ export class ClaudeApi implements LLMApi {
     }
 
     baseUrl = trimEnd(baseUrl, "/");
+
+    if (
+      this.customProviderConfig &&
+      shouldProxyCustomProvider(this.customProviderConfig)
+    ) {
+      return getCustomProviderProxyPath(path);
+    }
 
     // try rebuild url, when using cloudflare ai gateway in client
     return cloudflareAIGatewayUrl(joinBaseUrlPath(baseUrl, path));

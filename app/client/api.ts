@@ -27,6 +27,10 @@ import { XAIApi } from "./platforms/xai";
 import { ChatGLMApi } from "./platforms/glm";
 import { SiliconflowApi } from "./platforms/siliconflow";
 import { Ai302Api } from "./platforms/ai302";
+import {
+  normalizeCustomProviderBaseUrl,
+  shouldProxyCustomProvider,
+} from "../utils/custom-provider";
 
 export const ROLES = ["system", "user", "assistant"] as const;
 export type MessageRole = (typeof ROLES)[number];
@@ -361,6 +365,12 @@ export function getHeaders(
   } else if (isEnabledAccessControl && validString(accessStore.accessCode)) {
     headers["Authorization"] = getBearerToken(
       ACCESS_CODE_PREFIX + accessStore.accessCode,
+    );
+  }
+
+  if (customProvider && shouldProxyCustomProvider(customProvider)) {
+    headers["X-Base-URL"] = normalizeCustomProviderBaseUrl(
+      customProvider.baseUrl,
     );
   }
 

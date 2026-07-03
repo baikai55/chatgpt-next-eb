@@ -30,7 +30,11 @@ import { nanoid } from "nanoid";
 import { RequestPayload } from "./openai";
 import { fetch } from "@/app/utils/stream";
 import type { CustomProvider } from "@/app/store/access";
-import { resolveCustomProviderChatPath } from "@/app/utils/custom-provider";
+import {
+  getCustomProviderProxyPath,
+  resolveCustomProviderChatPath,
+  shouldProxyCustomProvider,
+} from "@/app/utils/custom-provider";
 
 export class GeminiProApi implements LLMApi {
   private customProviderConfig?: CustomProvider;
@@ -62,7 +66,11 @@ export class GeminiProApi implements LLMApi {
 
     console.log("[Proxy Endpoint] ", baseUrl, path);
 
-    let chatPath = joinBaseUrlPath(baseUrl, path);
+    let chatPath =
+      this.customProviderConfig &&
+      shouldProxyCustomProvider(this.customProviderConfig)
+        ? getCustomProviderProxyPath(path)
+        : joinBaseUrlPath(baseUrl, path);
     if (shouldStream) {
       chatPath += chatPath.includes("?") ? "&alt=sse" : "?alt=sse";
     }

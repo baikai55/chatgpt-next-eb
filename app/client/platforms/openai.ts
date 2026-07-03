@@ -47,8 +47,10 @@ import {
 } from "@/app/utils";
 import { fetch } from "@/app/utils/stream";
 import {
+  getCustomProviderProxyPath,
   getOpenAIPathKind,
   resolveCustomProviderChatPath,
+  shouldProxyCustomProvider,
 } from "@/app/utils/custom-provider";
 
 export interface OpenAIListModelResponse {
@@ -182,6 +184,13 @@ export class ChatGPTApi implements LLMApi {
     }
 
     console.log("[Proxy Endpoint] ", baseUrl, path);
+
+    if (
+      this.customProviderConfig &&
+      shouldProxyCustomProvider(this.customProviderConfig)
+    ) {
+      return getCustomProviderProxyPath(path);
+    }
 
     // try rebuild url, when using cloudflare ai gateway in client
     return cloudflareAIGatewayUrl(joinBaseUrlPath(baseUrl, path));
