@@ -562,6 +562,8 @@ const cn = {
         Name: "服务商名称",
         NamePlaceholder: "输入服务商名称",
         Protocol: "接口协议",
+        ChatPathPreset: "OpenAI 路径预设",
+        ChatPathPresetPlaceholder: "选择 OpenAI 路径",
         ChatPath: "聊天路径",
         Endpoint: "API 地址",
         EndpointPlaceholder: "https://api.example.com/v1",

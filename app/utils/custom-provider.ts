@@ -7,6 +7,41 @@ type CustomProviderLike = {
   chatPath?: string;
 };
 
+export const OPENAI_PATH_PRESETS: { label: string; value: string }[] = [
+  {
+    label: "Chat Completions - /v1/chat/completions",
+    value: OpenaiPath.ChatPath,
+  },
+  {
+    label: "Responses - /v1/responses",
+    value: "v1/responses",
+  },
+  {
+    label: "Images - /v1/images/generations",
+    value: OpenaiPath.ImagePath,
+  },
+];
+
+export type OpenAIPathKind = "chat" | "responses" | "images";
+
+export function getOpenAIPathKind(path?: string): OpenAIPathKind {
+  const normalizedPath = (path || "")
+    .trim()
+    .replace(/^\/+/, "")
+    .split("?")[0]
+    .toLowerCase();
+
+  if (normalizedPath === "v1/responses") {
+    return "responses";
+  }
+
+  if (normalizedPath === "v1/images/generations") {
+    return "images";
+  }
+
+  return "chat";
+}
+
 export function getDefaultCustomProviderChatPath(
   protocol: CustomProviderProtocol,
   model: string = "{model}",

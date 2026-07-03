@@ -49,7 +49,10 @@ import Locale, {
   getLang,
 } from "../locales";
 import { copyToClipboard, clientUpdate, semverCompare } from "../utils";
-import { getDefaultCustomProviderChatPath } from "../utils/custom-provider";
+import {
+  getDefaultCustomProviderChatPath,
+  OPENAI_PATH_PRESETS,
+} from "../utils/custom-provider";
 import Link from "next/link";
 import {
   Anthropic,
@@ -655,6 +658,13 @@ function CustomProviderSettings() {
     setEditingId(null);
   };
 
+  const normalizedChatPath = editForm.chatPath.trim().replace(/^\/+/, "");
+  const chatPathPresetValue = OPENAI_PATH_PRESETS.some(
+    (preset) => preset.value === normalizedChatPath,
+  )
+    ? normalizedChatPath
+    : "";
+
   return (
     <>
       <ListItem
@@ -790,6 +800,40 @@ function CustomProviderSettings() {
                     />
                   </div>
                 </ListItem>
+                {editForm.protocol === "openai" && (
+                  <ListItem
+                    title={Locale.Settings.Access.CustomProvider.ChatPathPreset}
+                  >
+                    <Select
+                      className={styles["custom-provider-field"]}
+                      align="left"
+                      aria-label={
+                        Locale.Settings.Access.CustomProvider.ChatPathPreset
+                      }
+                      value={chatPathPresetValue}
+                      onChange={(e) => {
+                        const chatPath = e.currentTarget.value;
+                        if (!chatPath) return;
+                        setEditForm({
+                          ...editForm,
+                          chatPath,
+                        });
+                      }}
+                    >
+                      <option value="">
+                        {
+                          Locale.Settings.Access.CustomProvider
+                            .ChatPathPresetPlaceholder
+                        }
+                      </option>
+                      {OPENAI_PATH_PRESETS.map((preset) => (
+                        <option value={preset.value} key={preset.value}>
+                          {preset.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </ListItem>
+                )}
                 <ListItem
                   title={Locale.Settings.Access.CustomProvider.ChatPath}
                   subTitle={

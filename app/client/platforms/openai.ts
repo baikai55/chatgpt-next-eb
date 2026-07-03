@@ -46,7 +46,10 @@ import {
   getTimeoutMSByModel,
 } from "@/app/utils";
 import { fetch } from "@/app/utils/stream";
-import { resolveCustomProviderChatPath } from "@/app/utils/custom-provider";
+import {
+  getOpenAIPathKind,
+  resolveCustomProviderChatPath,
+} from "@/app/utils/custom-provider";
 
 export interface OpenAIListModelResponse {
   object: string;
@@ -72,14 +75,69 @@ export interface RequestPayload {
   max_completion_tokens?: number;
 }
 
-export interface DalleRequestPayload {
+export interface ImageGenerationRequestPayload {
   model: string;
   prompt: string;
-  response_format: "url" | "b64_json";
   n: number;
   size: ModelSize;
+  response_format?: "url" | "b64_json";
+  quality?: DalleQuality;
+  style?: DalleStyle;
+}
+
+export interface DalleRequestPayload extends ImageGenerationRequestPayload {
+  response_format: "url" | "b64_json";
   quality: DalleQuality;
   style: DalleStyle;
+}
+
+export interface ResponsesRequestPayload {
+  model: string;
+  input:
+    | string
+    | Array<{
+        role: "user" | "assistant";
+        content: string;
+      }>;
+  instructions?: string;
+  stream?: boolean;
+  temperature?: number;
+  top_p?: number;
+  max_output_tokens?: number;
+}
+
+type OpenAIRequestPayload =
+  | RequestPayload
+  | ImageGenerationRequestPayload
+  | ResponsesRequestPayload;
+
+function getPromptFromMessages(messages: ChatOptions["messages"]) {
+  const lastMessage = messages.slice(-1)?.pop();
+  const lastText = lastMessage
+    ? getMessageTextContent(lastMessage as any).trim()
+    : "";
+
+  return (
+    lastText ||
+    messages
+      .map((message) => getMessageTextContent(message as any).trim())
+      .filter(Boolean)
+      .join("\n\n")
+  );
+}
+
+function extractResponsesOutputText(res: any) {
+  if (typeof res.output_text === "string") {
+    return res.output_text;
+  }
+
+  const outputText = res.output
+    ?.flatMap((output: any) => output.content ?? [])
+    ?.map((content: any) => content.text ?? "")
+    ?.filter(Boolean)
+    ?.join("");
+
+  return outputText || "";
 }
 
 export class ChatGPTApi implements LLMApi {
@@ -150,6 +208,10 @@ export class ChatGPTApi implements LLMApi {
         },
       ];
     }
+    const responsesOutputText = extractResponsesOutputText(res);
+    if (responsesOutputText) {
+      return responsesOutputText;
+    }
     return res.choices?.at(0)?.message?.content ?? res;
   }
 
@@ -205,28 +267,45 @@ export class ChatGPTApi implements LLMApi {
       },
     };
 
-    let requestPayload: RequestPayload | DalleRequestPayload;
-
     const isDalle3 = _isDalle3(options.config.model);
     const isO1OrO3 =
       options.config.model.startsWith("o1") ||
       options.config.model.startsWith("o3") ||
       options.config.model.startsWith("o4-mini");
     const isGpt5 = options.config.model.startsWith("gpt-5");
-    if (isDalle3) {
-      const prompt = getMessageTextContent(
-        options.messages.slice(-1)?.pop() as any,
-      );
-      requestPayload = {
+    const customProviderChatPath = resolveCustomProviderChatPath(
+      this.customProviderConfig,
+      modelConfig.model,
+    );
+    const customPathKind = this.customProviderConfig
+      ? getOpenAIPathKind(customProviderChatPath)
+      : "chat";
+    const requestKind =
+      customPathKind === "responses"
+        ? "responses"
+        : customPathKind === "images" || isDalle3
+        ? "images"
+        : "chat";
+
+    let requestPayload: OpenAIRequestPayload;
+
+    if (requestKind === "images") {
+      const prompt = getPromptFromMessages(options.messages);
+      const imagePayload: ImageGenerationRequestPayload = {
         model: options.config.model,
         prompt,
-        // URLs are only valid for 60 minutes after the image has been generated.
-        response_format: "b64_json", // using b64_json, and save image in CacheStorage
         n: 1,
         size: options.config?.size ?? "1024x1024",
-        quality: options.config?.quality ?? "standard",
-        style: options.config?.style ?? "vivid",
       };
+
+      if (isDalle3) {
+        // URLs are only valid for 60 minutes after the image has been generated.
+        imagePayload.response_format = "b64_json"; // using b64_json, and save image in CacheStorage
+        imagePayload.quality = options.config?.quality ?? "standard";
+        imagePayload.style = options.config?.style ?? "vivid";
+      }
+
+      requestPayload = imagePayload;
     } else {
       const visionModel = isVisionModel(options.config.model);
       const messages: ChatOptions["messages"] = [];
@@ -239,45 +318,82 @@ export class ChatGPTApi implements LLMApi {
       }
 
       // O1 not support image, tools (plugin in ChatGPTNextWeb) and system, stream, logprobs, temperature, top_p, n, presence_penalty, frequency_penalty yet.
-      requestPayload = {
-        messages,
-        stream: options.config.stream,
-        model: modelConfig.model,
-        temperature: !isO1OrO3 && !isGpt5 ? modelConfig.temperature : 1,
-        presence_penalty: !isO1OrO3 ? modelConfig.presence_penalty : 0,
-        frequency_penalty: !isO1OrO3 ? modelConfig.frequency_penalty : 0,
-        top_p: !isO1OrO3 ? modelConfig.top_p : 1,
-        // max_tokens: Math.max(modelConfig.max_tokens, 1024),
-        // Please do not ask me why not send max_tokens, no reason, this param is just shit, I dont want to explain anymore.
-      };
+      if (requestKind === "responses") {
+        const instructions = messages
+          .filter((message) => message.role === "system")
+          .map((message) => getMessageTextContent(message as any).trim())
+          .filter(Boolean)
+          .join("\n\n");
+        const inputMessages: Array<{
+          role: "user" | "assistant";
+          content: string;
+        }> = messages
+          .filter((message) => message.role !== "system")
+          .map((message) => ({
+            role: (message.role === "assistant" ? "assistant" : "user") as
+              | "user"
+              | "assistant",
+            content: getMessageTextContent(message as any).trim(),
+          }))
+          .filter((message) => message.content.length > 0);
 
-      if (isGpt5) {
-        // Remove max_tokens if present
-        delete requestPayload.max_tokens;
-        // Add max_completion_tokens (or max_completion_tokens if that's what you meant)
-        requestPayload["max_completion_tokens"] = modelConfig.max_tokens;
-      } else if (isO1OrO3) {
-        // by default the o1/o3 models will not attempt to produce output that includes markdown formatting
-        // manually add "Formatting re-enabled" developer message to encourage markdown inclusion in model responses
-        // (https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/reasoning?tabs=python-secure#markdown-output)
-        requestPayload["messages"].unshift({
-          role: "developer",
-          content: "Formatting re-enabled",
-        });
+        requestPayload = {
+          model: modelConfig.model,
+          input: inputMessages.length
+            ? inputMessages
+            : getPromptFromMessages(options.messages),
+          instructions: instructions || undefined,
+          stream: options.config.stream,
+          temperature: !isO1OrO3 && !isGpt5 ? modelConfig.temperature : 1,
+          top_p: !isO1OrO3 ? modelConfig.top_p : 1,
+          max_output_tokens: modelConfig.max_tokens,
+        };
+      } else {
+        const chatRequestPayload: RequestPayload = {
+          messages,
+          stream: options.config.stream,
+          model: modelConfig.model,
+          temperature: !isO1OrO3 && !isGpt5 ? modelConfig.temperature : 1,
+          presence_penalty: !isO1OrO3 ? modelConfig.presence_penalty : 0,
+          frequency_penalty: !isO1OrO3 ? modelConfig.frequency_penalty : 0,
+          top_p: !isO1OrO3 ? modelConfig.top_p : 1,
+          // max_tokens: Math.max(modelConfig.max_tokens, 1024),
+          // Please do not ask me why not send max_tokens, no reason, this param is just shit, I dont want to explain anymore.
+        };
 
-        // o1/o3 uses max_completion_tokens to control the number of tokens (https://platform.openai.com/docs/guides/reasoning#controlling-costs)
-        requestPayload["max_completion_tokens"] = modelConfig.max_tokens;
-      }
+        if (isGpt5) {
+          // Remove max_tokens if present
+          delete chatRequestPayload.max_tokens;
+          // Add max_completion_tokens (or max_completion_tokens if that's what you meant)
+          chatRequestPayload.max_completion_tokens = modelConfig.max_tokens;
+        } else if (isO1OrO3) {
+          // by default the o1/o3 models will not attempt to produce output that includes markdown formatting
+          // manually add "Formatting re-enabled" developer message to encourage markdown inclusion in model responses
+          // (https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/reasoning?tabs=python-secure#markdown-output)
+          chatRequestPayload.messages.unshift({
+            role: "developer",
+            content: "Formatting re-enabled",
+          });
 
-      // add max_tokens to vision model
-      if (visionModel && !isO1OrO3 && !isGpt5) {
-        requestPayload["max_tokens"] = Math.max(modelConfig.max_tokens, 4000);
+          // o1/o3 uses max_completion_tokens to control the number of tokens (https://platform.openai.com/docs/guides/reasoning#controlling-costs)
+          chatRequestPayload.max_completion_tokens = modelConfig.max_tokens;
+        }
+
+        // add max_tokens to vision model
+        if (visionModel && !isO1OrO3 && !isGpt5) {
+          chatRequestPayload.max_tokens = Math.max(
+            modelConfig.max_tokens,
+            4000,
+          );
+        }
+
+        requestPayload = chatRequestPayload;
       }
     }
 
     console.log("[Request] openai payload: ", requestPayload);
 
-    const shouldStream = !isDalle3 && !!options.config.stream;
+    const shouldStream = requestKind !== "images" && !!options.config.stream;
     const controller = new AbortController();
     options.onController?.(controller);
 
@@ -310,16 +426,69 @@ export class ChatGPTApi implements LLMApi {
           ),
         );
       } else {
+        const defaultPath =
+          requestKind === "images" ? OpenaiPath.ImagePath : OpenaiPath.ChatPath;
+        const customPath =
+          this.customProviderConfig && customPathKind === requestKind
+            ? customProviderChatPath
+            : undefined;
         chatPath = this.path(
-          isDalle3
-            ? OpenaiPath.ImagePath
-            : resolveCustomProviderChatPath(
-                this.customProviderConfig,
-                modelConfig.model,
-              ) || OpenaiPath.ChatPath,
+          requestKind === "chat"
+            ? customProviderChatPath || defaultPath
+            : customPath || defaultPath,
         );
       }
       if (shouldStream) {
+        if (requestKind === "responses") {
+          streamWithThink(
+            chatPath,
+            requestPayload,
+            headers,
+            [],
+            {},
+            controller,
+            (text: string) => {
+              const json = JSON.parse(text);
+              const type = json.type as string | undefined;
+
+              if (
+                type === "response.output_text.delta" ||
+                type === "response.refusal.delta"
+              ) {
+                return {
+                  isThinking: false,
+                  content: json.delta ?? "",
+                };
+              }
+
+              if (
+                type === "response.reasoning_summary_text.delta" ||
+                type === "response.reasoning.delta"
+              ) {
+                return {
+                  isThinking: true,
+                  content: json.delta ?? "",
+                };
+              }
+
+              if (typeof json.output_text === "string") {
+                return {
+                  isThinking: false,
+                  content: json.output_text,
+                };
+              }
+
+              return {
+                isThinking: false,
+                content: "",
+              };
+            },
+            () => {},
+            options,
+          );
+          return;
+        }
+
         let index = -1;
         const [tools, funcs] = usePluginStore
           .getState()

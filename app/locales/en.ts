@@ -567,6 +567,8 @@ const en: LocaleType = {
         Name: "Provider Name",
         NamePlaceholder: "Enter provider name",
         Protocol: "Protocol",
+        ChatPathPreset: "OpenAI Path Preset",
+        ChatPathPresetPlaceholder: "Select an OpenAI path",
         ChatPath: "Chat Path",
         ChatPathSubTitle:
           "Request path for chat calls. Google protocol supports a {model} placeholder",
