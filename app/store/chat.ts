@@ -511,6 +511,23 @@ export const useChatStore = createPersistStore(
           },
           onError(error) {
             const isAborted = error.message?.includes?.("aborted");
+            // A plain abort (user stop / session switch / timeout) is a graceful
+            // stop, not a failure. onFinish already kept the partial content and
+            // cleared the streaming flag, so don't pollute the message with an
+            // error blob. Genuine empty responses still surface via the
+            // "empty response from server" path in the stream layer.
+            if (isAborted) {
+              botMessage.streaming = false;
+              get().updateTargetSession(session, (session) => {
+                session.messages = session.messages.concat();
+              });
+              ChatControllerPool.remove(
+                session.id,
+                botMessage.id ?? messageIndex,
+              );
+              return;
+            }
+
             botMessage.content +=
               "\n\n" +
               prettyObject({
@@ -518,8 +535,8 @@ export const useChatStore = createPersistStore(
                 message: error.message,
               });
             botMessage.streaming = false;
-            userMessage.isError = !isAborted;
-            botMessage.isError = !isAborted;
+            userMessage.isError = true;
+            botMessage.isError = true;
             get().updateTargetSession(session, (session) => {
               session.messages = session.messages.concat();
             });

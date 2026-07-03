@@ -1150,6 +1150,12 @@ function _Chat() {
     chatStore.updateTargetSession(session, (session) => {
       const stopTiming = Date.now() - REQUEST_TIMEOUT_MS;
       session.messages.forEach((m) => {
+        // keep messages whose request is still actively running (e.g. long
+        // thinking-model streams, or a request still streaming in the
+        // background after switching sessions) — only clean up真正残留的僵尸消息
+        if (ChatControllerPool.has(session.id, m.id)) {
+          return;
+        }
         // check if should stop all stale messages
         if (m.isError || new Date(m.date).getTime() < stopTiming) {
           if (m.streaming) {

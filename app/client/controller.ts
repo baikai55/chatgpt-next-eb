@@ -26,6 +26,11 @@ export const ChatControllerPool = {
     return Object.values(this.controllers).length > 0;
   },
 
+  has(sessionId: string, messageId: string) {
+    const key = this.key(sessionId, messageId);
+    return !!this.controllers[key];
+  },
+
   remove(sessionId: string, messageId: string) {
     const key = this.key(sessionId, messageId);
     delete this.controllers[key];
