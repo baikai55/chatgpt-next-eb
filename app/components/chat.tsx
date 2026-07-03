@@ -1173,7 +1173,7 @@ function _Chat() {
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session]);
+  }, [session, config.modelConfig]);
 
   // check if should send message
   const onInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

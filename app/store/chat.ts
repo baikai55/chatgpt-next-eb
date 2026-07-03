@@ -119,6 +119,19 @@ function createEmptySession(): ChatSession {
   };
 }
 
+function getSessionModelConfig(session: ChatSession): ModelConfig {
+  const globalModelConfig = useAppConfig.getState().modelConfig;
+
+  if (session.mask.syncGlobalConfig) {
+    return { ...globalModelConfig };
+  }
+
+  return {
+    ...globalModelConfig,
+    ...session.mask.modelConfig,
+  };
+}
+
 function getSummarizeModel(
   currentModel: string,
   providerName: string,
@@ -411,7 +424,7 @@ export const useChatStore = createPersistStore(
         isMcpResponse?: boolean,
       ) {
         const session = get().currentSession();
-        const modelConfig = session.mask.modelConfig;
+        const modelConfig = getSessionModelConfig(session);
 
         // MCP Response no need to fill template
         let mContent: string | MultimodalContent[] = isMcpResponse
@@ -542,7 +555,7 @@ export const useChatStore = createPersistStore(
 
       async getMessagesWithMemory() {
         const session = get().currentSession();
-        const modelConfig = session.mask.modelConfig;
+        const modelConfig = getSessionModelConfig(session);
         const clearContextIndex = session.clearContextIndex ?? 0;
         const messages = session.messages.slice();
         const totalMessageCount = session.messages.length;
@@ -553,8 +566,8 @@ export const useChatStore = createPersistStore(
         // system prompts, to get close to OpenAI Web ChatGPT
         const shouldInjectSystemPrompts =
           modelConfig.enableInjectSystemPrompts &&
-          (session.mask.modelConfig.model.startsWith("gpt-") ||
-            session.mask.modelConfig.model.startsWith("chatgpt-"));
+          (modelConfig.model.startsWith("gpt-") ||
+            modelConfig.model.startsWith("chatgpt-"));
 
         const mcpEnabled = await isMcpEnabled();
         const mcpSystemPrompt = mcpEnabled ? await getMcpSystemPrompt() : "";
@@ -665,7 +678,7 @@ export const useChatStore = createPersistStore(
       ) {
         const config = useAppConfig.getState();
         const session = targetSession;
-        const modelConfig = session.mask.modelConfig;
+        const modelConfig = getSessionModelConfig(session);
         // skip summarize when using dalle3?
         if (isDalle3(modelConfig.model)) {
           return;
@@ -674,10 +687,7 @@ export const useChatStore = createPersistStore(
         // if not config compressModel, then using getSummarizeModel
         const [model, providerName] = modelConfig.compressModel
           ? [modelConfig.compressModel, modelConfig.compressProviderName]
-          : getSummarizeModel(
-              session.mask.modelConfig.model,
-              session.mask.modelConfig.providerName,
-            );
+          : getSummarizeModel(modelConfig.model, modelConfig.providerName);
         const api: ClientApi = getClientApi(providerName as ServiceProvider);
 
         // remove error messages if any
