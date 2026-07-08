@@ -50,8 +50,14 @@ import Locale, {
 } from "../locales";
 import { copyToClipboard, clientUpdate, semverCompare } from "../utils";
 import {
+  extractCustomProviderModelNames,
   getDefaultCustomProviderChatPath,
+  getCustomProviderModelsPath,
+  getCustomProviderProxyPath,
+  joinCustomProviderUrl,
+  normalizeCustomProviderBaseUrl,
   OPENAI_PATH_PRESETS,
+  shouldProxyCustomProvider,
 } from "../utils/custom-provider";
 import Link from "next/link";
 import {
@@ -587,6 +593,7 @@ function CustomProviderSettings() {
   const accessStore = useAccessStore();
   const customProviders = accessStore.customProviders || [];
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [fetchingModels, setFetchingModels] = useState(false);
   const [editForm, setEditForm] = useState({
     name: "",
     protocol: "openai" as CustomProvider["protocol"],
@@ -598,6 +605,7 @@ function CustomProviderSettings() {
 
   const startEdit = (provider: CustomProvider) => {
     setEditingId(provider.id);
+    setFetchingModels(false);
     setEditForm({
       name: provider.name,
       protocol: provider.protocol,
@@ -612,6 +620,7 @@ function CustomProviderSettings() {
 
   const startAdd = () => {
     setEditingId("new");
+    setFetchingModels(false);
     setEditForm({
       name: "",
       protocol: "openai",
@@ -656,6 +665,87 @@ function CustomProviderSettings() {
       });
     }
     setEditingId(null);
+  };
+
+  const fetchProviderModels = async () => {
+    const baseUrl = editForm.baseUrl.trim();
+    if (!baseUrl) {
+      showToast(
+        Locale.Settings.Access.CustomProvider.FetchModelsMissingEndpoint,
+      );
+      return;
+    }
+
+    const provider = {
+      protocol: editForm.protocol,
+      baseUrl,
+      chatPath: editForm.chatPath,
+    };
+    const modelsPath = getCustomProviderModelsPath(
+      editForm.protocol,
+      editForm.chatPath,
+    );
+    const useProxy = shouldProxyCustomProvider(provider);
+    const fetchUrl = useProxy
+      ? getCustomProviderProxyPath(modelsPath)
+      : joinCustomProviderUrl(baseUrl, modelsPath);
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+    };
+    const apiKey = editForm.apiKey.trim();
+
+    if (useProxy) {
+      headers["X-Base-URL"] = normalizeCustomProviderBaseUrl(baseUrl);
+    }
+
+    if (editForm.protocol === "anthropic") {
+      headers["anthropic-version"] = Anthropic.Vision;
+    }
+
+    if (apiKey) {
+      if (editForm.protocol === "anthropic") {
+        headers["x-api-key"] = apiKey;
+      } else if (editForm.protocol === "google") {
+        headers["x-goog-api-key"] = apiKey;
+      } else {
+        headers["Authorization"] = `Bearer ${apiKey}`;
+      }
+    }
+
+    setFetchingModels(true);
+    try {
+      const res = await fetch(fetchUrl, {
+        method: "GET",
+        headers,
+      });
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        throw new Error(detail || `${res.status} ${res.statusText}`);
+      }
+
+      const data = await res.json();
+      const models = extractCustomProviderModelNames(editForm.protocol, data);
+      if (models.length === 0) {
+        showToast(Locale.Settings.Access.CustomProvider.FetchModelsEmpty);
+        return;
+      }
+
+      setEditForm((form) => ({
+        ...form,
+        models: models.join("\n"),
+      }));
+      showToast(
+        Locale.Settings.Access.CustomProvider.FetchModelsSuccess(models.length),
+      );
+    } catch (error) {
+      showToast(
+        Locale.Settings.Access.CustomProvider.FetchModelsFailed(
+          error instanceof Error ? error.message : String(error),
+        ),
+      );
+    } finally {
+      setFetchingModels(false);
+    }
   };
 
   const normalizedChatPath = editForm.chatPath.trim().replace(/^\/+/, "");
@@ -884,6 +974,21 @@ function CustomProviderSettings() {
                 </ListItem>
                 <ListItem title={Locale.Settings.Access.CustomProvider.Models}>
                   <div className={styles["custom-provider-field"]}>
+                    <div className={styles["custom-provider-model-tools"]}>
+                      <IconButton
+                        aria={Locale.Settings.Access.CustomProvider.FetchModels}
+                        icon={<DownloadIcon />}
+                        text={
+                          fetchingModels
+                            ? Locale.Settings.Access.CustomProvider
+                                .FetchingModels
+                            : Locale.Settings.Access.CustomProvider.FetchModels
+                        }
+                        disabled={fetchingModels}
+                        onClick={fetchProviderModels}
+                        bordered
+                      />
+                    </div>
                     <Input
                       aria-label={Locale.Settings.Access.CustomProvider.Models}
                       rows={5}

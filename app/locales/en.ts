@@ -580,6 +580,13 @@ const en: LocaleType = {
         Models: "Models",
         ModelsPlaceholder: "model1,model2,model3",
         ModelsCount: "models",
+        FetchModels: "Fetch Models",
+        FetchingModels: "Fetching",
+        FetchModelsMissingEndpoint: "Please enter an API endpoint first",
+        FetchModelsEmpty: "No available models found",
+        FetchModelsSuccess: (count: number) => `Fetched ${count} models`,
+        FetchModelsFailed: (error: string) =>
+          `Failed to fetch models: ${error}`,
       },
     },
 

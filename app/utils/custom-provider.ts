@@ -61,6 +61,22 @@ export function getDefaultCustomProviderChatPath(
   }
 }
 
+export function getCustomProviderModelsPath(
+  protocol: CustomProviderProtocol,
+  chatPath?: string,
+) {
+  if (protocol === "google") {
+    const version =
+      chatPath
+        ?.trim()
+        .replace(/^\/+/, "")
+        .match(/^(v\d+(?:beta)?)/)?.[1] ?? "v1beta";
+    return `${version}/models`;
+  }
+
+  return OpenaiPath.ListModelPath;
+}
+
 export function resolveCustomProviderChatPath(
   provider?: CustomProviderLike,
   model: string = "{model}",
@@ -92,6 +108,50 @@ export function normalizeCustomProviderBaseUrl(baseUrl: string = "") {
   }
 
   return normalizedBaseUrl;
+}
+
+export function joinCustomProviderUrl(baseUrl: string, path: string) {
+  const normalizedBaseUrl = normalizeCustomProviderBaseUrl(baseUrl);
+  const normalizedPath = path.replace(/^\/+/, "");
+  const pathSegments = normalizedPath.split("/");
+  const baseLastSegment = normalizedBaseUrl.split("/").filter(Boolean).pop();
+
+  if (baseLastSegment && pathSegments[0] === baseLastSegment) {
+    pathSegments.shift();
+  }
+
+  return [normalizedBaseUrl.replace(/\/+$/, ""), pathSegments.join("/")]
+    .filter(Boolean)
+    .join("/");
+}
+
+export function extractCustomProviderModelNames(
+  protocol: CustomProviderProtocol,
+  response: any,
+) {
+  const rawModels =
+    protocol === "google"
+      ? response?.models
+      : Array.isArray(response)
+      ? response
+      : response?.data;
+
+  if (!Array.isArray(rawModels)) return [];
+
+  return Array.from(
+    new Set(
+      rawModels
+        .map((model) =>
+          typeof model === "string" ? model : model?.id ?? model?.name,
+        )
+        .filter((model): model is string => typeof model === "string")
+        .map((model) =>
+          protocol === "google" ? model.replace(/^models\//, "") : model,
+        )
+        .map((model) => model.trim())
+        .filter(Boolean),
+    ),
+  ).sort((a, b) => a.localeCompare(b));
 }
 
 export function shouldProxyCustomProvider(provider?: CustomProviderLike) {

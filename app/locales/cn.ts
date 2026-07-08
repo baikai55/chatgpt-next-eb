@@ -574,6 +574,12 @@ const cn = {
         Models: "模型列表",
         ModelsPlaceholder: "model-1,model-2,model-3",
         ModelsCount: "个模型",
+        FetchModels: "自动获取模型",
+        FetchingModels: "获取中",
+        FetchModelsMissingEndpoint: "请先填写 API 地址",
+        FetchModelsEmpty: "未获取到可用模型",
+        FetchModelsSuccess: (count: number) => `已获取 ${count} 个模型`,
+        FetchModelsFailed: (error: string) => `获取模型失败：${error}`,
       },
     },
 
