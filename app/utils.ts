@@ -9,7 +9,7 @@ import {
 } from "./constant";
 // import { fetch as tauriFetch, ResponseType } from "@tauri-apps/api/http";
 import { fetch as tauriStreamFetch } from "./utils/stream";
-import { EXCLUDE_VISION_MODEL_REGEXES } from "./constant";
+import { EXCLUDE_VISION_MODEL_REGEXES, VISION_MODEL_REGEXES } from "./constant";
 import { useAccessStore } from "./store";
 import { ModelSize } from "./typing";
 
@@ -304,7 +304,7 @@ export function isVisionModel(model: string) {
   if (EXCLUDE_VISION_MODEL_REGEXES.some((regex) => regex.test(model))) {
     return false;
   }
-  return true;
+  return VISION_MODEL_REGEXES.some((regex) => regex.test(model));
 }
 
 export function isDalle3(model: string) {
@@ -485,7 +485,8 @@ export function clientUpdate() {
 }
 
 // https://gist.github.com/iwill/a83038623ba4fef6abb9efca87ae9ccb
-export function semverCompare(a: string, b: string) {
+export function semverCompare(a?: string | null, b?: string | null) {
+  if (!a || !b) return 0;
   if (a.startsWith(b + "-")) return -1;
   if (b.startsWith(a + "-")) return 1;
   return a.localeCompare(b, undefined, {

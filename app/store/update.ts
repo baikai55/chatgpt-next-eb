@@ -61,8 +61,9 @@ export const useUpdateStore = createPersistStore(
     lastUpdateUsage: 0,
   },
   (set, get) => ({
-    formatVersion(version: string) {
-      if (get().versionType === "date") {
+    formatVersion(version?: string | null) {
+      if (!version) return "";
+      if (get().versionType === "date" && version !== "unknown") {
         version = formatVersionDate(version);
       }
       return version;
@@ -75,7 +76,7 @@ export const useUpdateStore = createPersistStore(
           ? getClientConfig()?.commitDate
           : getClientConfig()?.version;
 
-      set(() => ({ version }));
+      set(() => ({ version: version ?? "unknown" }));
 
       const shouldCheck = Date.now() - get().lastUpdate > 2 * 60 * ONE_MINUTE;
       if (!force && !shouldCheck) return;
@@ -86,6 +87,7 @@ export const useUpdateStore = createPersistStore(
 
       try {
         const remoteId = await getVersion(versionType);
+        if (!remoteId) return;
         set(() => ({
           remoteVersion: remoteId,
         }));
