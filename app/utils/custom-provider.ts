@@ -7,6 +7,7 @@ type CustomProviderLike = {
   protocol: CustomProviderProtocol;
   baseUrl?: string;
   chatPath?: string;
+  useProxy?: boolean;
 };
 
 const CUSTOM_PROVIDER_PROXY_PATH = "/api/proxy";
@@ -156,6 +157,7 @@ export function extractCustomProviderModelNames(
 
 export function shouldProxyCustomProvider(provider?: CustomProviderLike) {
   if (!provider) return false;
+  if (provider.useProxy === false) return false;
   if (getClientConfig()?.isApp) return false;
 
   return HTTP_URL_REGEXP.test(normalizeCustomProviderBaseUrl(provider.baseUrl));

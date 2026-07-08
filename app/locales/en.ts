@@ -575,6 +575,11 @@ const en: LocaleType = {
         ChatPathPlaceholder: "v1/chat/completions",
         Endpoint: "API Endpoint",
         EndpointPlaceholder: "https://api.example.com/v1",
+        ProxyMode: "Request Mode",
+        ProxyModeSubTitle:
+          "Server proxy is for public APIs; browser direct is for local or Tailscale endpoints and requires CORS",
+        ProxyModeServer: "Server Proxy",
+        ProxyModeDirect: "Browser Direct",
         ApiKeyTitle: "API Key",
         ApiKeyPlaceholder: "Enter API Key",
         Models: "Models",

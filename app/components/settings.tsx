@@ -601,6 +601,7 @@ function CustomProviderSettings() {
     chatPath: getDefaultCustomProviderChatPath("openai"),
     apiKey: "",
     models: "",
+    useProxy: true,
   });
 
   const startEdit = (provider: CustomProvider) => {
@@ -615,6 +616,7 @@ function CustomProviderSettings() {
         getDefaultCustomProviderChatPath(provider.protocol),
       apiKey: provider.apiKey,
       models: provider.models.join("\n"),
+      useProxy: provider.useProxy !== false,
     });
   };
 
@@ -628,6 +630,7 @@ function CustomProviderSettings() {
       chatPath: getDefaultCustomProviderChatPath("openai"),
       apiKey: "",
       models: "",
+      useProxy: true,
     });
   };
 
@@ -651,6 +654,7 @@ function CustomProviderSettings() {
           getDefaultCustomProviderChatPath(editForm.protocol),
         apiKey: editForm.apiKey,
         models,
+        useProxy: editForm.useProxy,
       });
     } else if (editingId) {
       accessStore.updateCustomProvider(editingId, {
@@ -662,6 +666,7 @@ function CustomProviderSettings() {
           getDefaultCustomProviderChatPath(editForm.protocol),
         apiKey: editForm.apiKey,
         models,
+        useProxy: editForm.useProxy,
       });
     }
     setEditingId(null);
@@ -680,6 +685,7 @@ function CustomProviderSettings() {
       protocol: editForm.protocol,
       baseUrl,
       chatPath: editForm.chatPath,
+      useProxy: editForm.useProxy,
     };
     const modelsPath = getCustomProviderModelsPath(
       editForm.protocol,
@@ -777,6 +783,10 @@ function CustomProviderSettings() {
           subTitle={`${provider.baseUrl} | ${
             provider.chatPath ||
             getDefaultCustomProviderChatPath(provider.protocol)
+          } | ${
+            provider.useProxy === false
+              ? Locale.Settings.Access.CustomProvider.ProxyModeDirect
+              : Locale.Settings.Access.CustomProvider.ProxyModeServer
           } | ${provider.models.length} ${
             Locale.Settings.Access.CustomProvider.ModelsCount
           }`}
@@ -889,6 +899,32 @@ function CustomProviderSettings() {
                       }
                     />
                   </div>
+                </ListItem>
+                <ListItem
+                  title={Locale.Settings.Access.CustomProvider.ProxyMode}
+                  subTitle={
+                    Locale.Settings.Access.CustomProvider.ProxyModeSubTitle
+                  }
+                >
+                  <Select
+                    className={styles["custom-provider-field"]}
+                    align="left"
+                    aria-label={Locale.Settings.Access.CustomProvider.ProxyMode}
+                    value={editForm.useProxy ? "server" : "direct"}
+                    onChange={(e) =>
+                      setEditForm({
+                        ...editForm,
+                        useProxy: e.currentTarget.value !== "direct",
+                      })
+                    }
+                  >
+                    <option value="server">
+                      {Locale.Settings.Access.CustomProvider.ProxyModeServer}
+                    </option>
+                    <option value="direct">
+                      {Locale.Settings.Access.CustomProvider.ProxyModeDirect}
+                    </option>
+                  </Select>
                 </ListItem>
                 {editForm.protocol === "openai" && (
                   <ListItem

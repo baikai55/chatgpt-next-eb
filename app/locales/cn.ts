@@ -567,6 +567,11 @@ const cn = {
         ChatPath: "聊天路径",
         Endpoint: "API 地址",
         EndpointPlaceholder: "https://api.example.com/v1",
+        ProxyMode: "请求方式",
+        ProxyModeSubTitle:
+          "服务端代理适合公网 API；浏览器直连适合本机或 Tailscale 地址，需服务商允许 CORS",
+        ProxyModeServer: "服务端代理",
+        ProxyModeDirect: "浏览器直连",
         ChatPathSubTitle: "聊天请求的路径，Google 协议可使用 {model} 占位符",
         ChatPathPlaceholder: "v1/chat/completions",
         ApiKeyTitle: "API Key",

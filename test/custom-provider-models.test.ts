@@ -2,6 +2,7 @@ import {
   extractCustomProviderModelNames,
   getCustomProviderModelsPath,
   joinCustomProviderUrl,
+  shouldProxyCustomProvider,
 } from "../app/utils/custom-provider";
 
 describe("custom provider model helpers", () => {
@@ -20,6 +21,22 @@ describe("custom provider model helpers", () => {
     expect(joinCustomProviderUrl("https://api.example.com/v1", "v1/models")).toBe(
       "https://api.example.com/v1/models",
     );
+  });
+
+  test("should allow custom providers to opt out of server proxy", () => {
+    expect(
+      shouldProxyCustomProvider({
+        protocol: "openai",
+        baseUrl: "https://api.example.com",
+      }),
+    ).toBe(true);
+    expect(
+      shouldProxyCustomProvider({
+        protocol: "openai",
+        baseUrl: "https://api.example.com",
+        useProxy: false,
+      }),
+    ).toBe(false);
   });
 
   test("should extract openai-compatible model names", () => {

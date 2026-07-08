@@ -8,6 +8,7 @@ export interface CustomProvider {
   chatPath: string;
   apiKey: string;
   models: string[];
+  useProxy?: boolean;
 }
 
 import {
