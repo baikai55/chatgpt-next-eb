@@ -4,6 +4,7 @@ import Locale from "./locales";
 import { RequestMessage } from "./client/api";
 import {
   REQUEST_TIMEOUT_MS,
+  REQUEST_TIMEOUT_MS_FOR_LONG_TASK,
   REQUEST_TIMEOUT_MS_FOR_THINKING,
   ServiceProvider,
 } from "./constant";
@@ -311,11 +312,52 @@ export function isDalle3(model: string) {
   return "dall-e-3" === model;
 }
 
-export function getTimeoutMSByModel(model: string) {
+export function isLongRunningGenerationModel(model: string) {
+  const normalized = model.toLowerCase();
+  const imageOrVideoToken = /(^|[-_/:.])(image|video|t2i|i2i)($|[-_/:.])/;
+  const generationModelPatterns = [
+    /^dall-e/,
+    /^dalle/,
+    /^gpt-image/,
+    /^cogview-/,
+    /^cogvideo-/,
+    /gpt-image/,
+    /image-generation/,
+    /imagegen/,
+    /imagen/,
+    /txt2img/,
+    /img2img/,
+    /stable-diffusion/,
+    /sdxl/,
+    /seedream/,
+    /jimeng/,
+    /wanx/,
+    /kolors/,
+    /flux/,
+    /midjourney/,
+    /recraft/,
+    /hidream/,
+    /ideogram/,
+    /kling/,
+    /sora/,
+    /veo/,
+  ];
+
+  return (
+    imageOrVideoToken.test(normalized) ||
+    generationModelPatterns.some((regex) => regex.test(normalized))
+  );
+}
+
+export function getTimeoutMSByModel(
+  model: string,
+  options: { longRunning?: boolean } = {},
+) {
   model = model.toLowerCase();
+  if (options.longRunning || isLongRunningGenerationModel(model)) {
+    return REQUEST_TIMEOUT_MS_FOR_LONG_TASK;
+  }
   if (
-    model.startsWith("dall-e") ||
-    model.startsWith("dalle") ||
     model.startsWith("o1") ||
     model.startsWith("o3") ||
     model.includes("deepseek-r") ||

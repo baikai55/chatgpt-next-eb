@@ -405,6 +405,9 @@ export class ChatGPTApi implements LLMApi {
     const shouldStream = requestKind !== "images" && !!options.config.stream;
     const controller = new AbortController();
     options.onController?.(controller);
+    const requestTimeoutMs = getTimeoutMSByModel(options.config.model, {
+      longRunning: requestKind === "images",
+    });
 
     try {
       const headers = getHeaders(false, options.config.providerName);
@@ -494,6 +497,7 @@ export class ChatGPTApi implements LLMApi {
             },
             () => {},
             options,
+            requestTimeoutMs,
           );
           return;
         }
@@ -595,6 +599,7 @@ export class ChatGPTApi implements LLMApi {
             );
           },
           options,
+          requestTimeoutMs,
         );
       } else {
         const chatPayload = {
@@ -607,7 +612,7 @@ export class ChatGPTApi implements LLMApi {
         // make a fetch request
         const requestTimeoutId = setTimeout(
           () => controller.abort(),
-          getTimeoutMSByModel(options.config.model),
+          requestTimeoutMs,
         );
 
         const res = await fetch(chatPath, chatPayload);
