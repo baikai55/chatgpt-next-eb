@@ -474,24 +474,52 @@ function ZoomableImage(props: {
   boxStyle?: CSSProperties;
 }) {
   const [scale, setScale] = useState(1);
-  const changeScale = (delta: number) =>
-    setScale((value) => Math.min(4, Math.max(0.25, value + delta)));
+  const pinchDistanceRef = useRef<number | null>(null);
+  const clampScale = (value: number) => Math.min(4, Math.max(0.25, value));
+
+  const getTouchDistance = (touches: TouchList) => {
+    const [first, second] = [touches[0], touches[1]];
+    return Math.hypot(
+      second.clientX - first.clientX,
+      second.clientY - first.clientY,
+    );
+  };
+
+  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const factor = event.deltaY < 0 ? 1.1 : 0.9;
+    setScale((value) => clampScale(value * factor));
+  };
+
+  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length === 2) {
+      pinchDistanceRef.current = getTouchDistance(event.touches);
+    }
+  };
+
+  const handleTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length !== 2 || pinchDistanceRef.current === null) return;
+    event.preventDefault();
+    const distance = getTouchDistance(event.touches);
+    const factor = distance / pinchDistanceRef.current;
+    setScale((value) => clampScale(value * factor));
+    pinchDistanceRef.current = distance;
+  };
+
+  const handleTouchEnd = () => {
+    pinchDistanceRef.current = null;
+  };
 
   return (
     <div className={styles["image-preview"]} style={props.boxStyle}>
-      <div className={styles["image-preview-toolbar"]}>
-        <button onClick={() => changeScale(-0.25)} aria-label="缩小图片">
-          −
-        </button>
-        <span>{Math.round(scale * 100)}%</span>
-        <button onClick={() => changeScale(0.25)} aria-label="放大图片">
-          +
-        </button>
-        <button onClick={() => setScale(1)} aria-label="重置图片大小">
-          1:1
-        </button>
-      </div>
-      <div className={styles["image-preview-canvas"]}>
+      <div
+        className={styles["image-preview-canvas"]}
+        onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+      >
         <img
           src={proxiedImageUrl(props.src)}
           alt="preview"
