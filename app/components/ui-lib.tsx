@@ -477,7 +477,7 @@ function ZoomableImage(props: {
   const pinchDistanceRef = useRef<number | null>(null);
   const clampScale = (value: number) => Math.min(4, Math.max(0.25, value));
 
-  const getTouchDistance = (touches: TouchList) => {
+  const getTouchDistance = (touches: React.TouchList) => {
     const [first, second] = [touches[0], touches[1]];
     return Math.hypot(
       second.clientX - first.clientX,
