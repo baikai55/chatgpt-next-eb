@@ -474,8 +474,17 @@ function ZoomableImage(props: {
   boxStyle?: CSSProperties;
 }) {
   const [scale, setScale] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
   const pinchDistanceRef = useRef<number | null>(null);
+  const dragPointRef = useRef<{ x: number; y: number } | null>(null);
   const clampScale = (value: number) => Math.min(4, Math.max(0.25, value));
+
+  useEffect(() => {
+    if (scale <= 1) {
+      setOffset({ x: 0, y: 0 });
+    }
+  }, [scale]);
 
   const getTouchDistance = (touches: React.TouchList) => {
     const [first, second] = [touches[0], touches[1]];
@@ -494,20 +503,66 @@ function ZoomableImage(props: {
   const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
     if (event.touches.length === 2) {
       pinchDistanceRef.current = getTouchDistance(event.touches);
+      dragPointRef.current = null;
+    } else if (event.touches.length === 1 && scale > 1) {
+      dragPointRef.current = {
+        x: event.touches[0].clientX,
+        y: event.touches[0].clientY,
+      };
     }
   };
 
   const handleTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (event.touches.length !== 2 || pinchDistanceRef.current === null) return;
-    event.preventDefault();
-    const distance = getTouchDistance(event.touches);
-    const factor = distance / pinchDistanceRef.current;
-    setScale((value) => clampScale(value * factor));
-    pinchDistanceRef.current = distance;
+    if (event.touches.length === 2 && pinchDistanceRef.current !== null) {
+      event.preventDefault();
+      const distance = getTouchDistance(event.touches);
+      const factor = distance / pinchDistanceRef.current;
+      setScale((value) => clampScale(value * factor));
+      pinchDistanceRef.current = distance;
+    } else if (
+      event.touches.length === 1 &&
+      dragPointRef.current !== null &&
+      scale > 1
+    ) {
+      event.preventDefault();
+      const point = event.touches[0];
+      const deltaX = point.clientX - dragPointRef.current.x;
+      const deltaY = point.clientY - dragPointRef.current.y;
+      setOffset((value) => ({
+        x: value.x + deltaX,
+        y: value.y + deltaY,
+      }));
+      dragPointRef.current = { x: point.clientX, y: point.clientY };
+    }
   };
 
   const handleTouchEnd = () => {
     pinchDistanceRef.current = null;
+    dragPointRef.current = null;
+  };
+
+  const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (scale <= 1) return;
+    event.preventDefault();
+    setDragging(true);
+    dragPointRef.current = { x: event.clientX, y: event.clientY };
+  };
+
+  const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!dragging || dragPointRef.current === null) return;
+    event.preventDefault();
+    const deltaX = event.clientX - dragPointRef.current.x;
+    const deltaY = event.clientY - dragPointRef.current.y;
+    setOffset((value) => ({
+      x: value.x + deltaX,
+      y: value.y + deltaY,
+    }));
+    dragPointRef.current = { x: event.clientX, y: event.clientY };
+  };
+
+  const handleMouseUp = () => {
+    setDragging(false);
+    dragPointRef.current = null;
   };
 
   return (
@@ -515,6 +570,10 @@ function ZoomableImage(props: {
       <div
         className={styles["image-preview-canvas"]}
         onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -529,7 +588,9 @@ function ZoomableImage(props: {
               maxHeight: "100%",
               objectFit: "contain",
             }),
-            transform: `scale(${scale})`,
+            cursor: scale > 1 ? (dragging ? "grabbing" : "grab") : "default",
+            transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+            transition: dragging ? "none" : "transform 0.15s ease",
           }}
         />
       </div>

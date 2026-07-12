@@ -353,7 +353,8 @@
 
     img {
       transform-origin: center center;
-      transition: transform 0.15s ease;
+      user-select: none;
+      -webkit-user-drag: none;
     }
   }
 }
