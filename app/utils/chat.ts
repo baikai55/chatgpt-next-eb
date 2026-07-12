@@ -74,8 +74,8 @@ export async function preProcessImageContentBase(
   content: RequestMessage["content"],
   transformImageUrl: (url: string) => Promise<{ [key: string]: any }>,
 ) {
-  if (typeof content === "string") {
-    return content;
+  if (!Array.isArray(content)) {
+    return typeof content === "string" ? content : "";
   }
   const result = [];
   for (const part of content) {
