@@ -337,3 +337,43 @@
   }
 }
 
+.image-preview {
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+
+  &-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 12px;
+
+    button {
+      min-width: 34px;
+      height: 32px;
+      border: var(--border-in-light);
+      border-radius: 8px;
+      background: var(--white);
+      color: var(--black);
+      cursor: pointer;
+    }
+  }
+
+  &-canvas {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 200px;
+    height: calc(100% - 44px);
+    overflow: auto;
+
+    img {
+      transform-origin: center center;
+      transition: transform 0.15s ease;
+    }
+  }
+}

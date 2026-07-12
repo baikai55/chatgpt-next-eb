@@ -17,11 +17,7 @@ import {
 } from "@fortaine/fetch-event-source";
 import { prettyObject } from "@/app/utils/format";
 import { getClientConfig } from "@/app/config/client";
-import {
-  getMessageTextContent,
-  isVisionModel,
-  getTimeoutMSByModel,
-} from "@/app/utils";
+import { getMessageTextContent, getTimeoutMSByModel } from "@/app/utils";
 import mapKeys from "lodash-es/mapKeys";
 import mapValues from "lodash-es/mapValues";
 import isArray from "lodash-es/isArray";
@@ -98,7 +94,7 @@ export class HunyuanApi implements LLMApi {
   }
 
   async chat(options: ChatOptions) {
-    const visionModel = isVisionModel(options.config.model);
+    const visionModel = true;
     const messages = options.messages.map((v, index) => ({
       // "Messages 中 system 角色必须位于列表的最开始"
       role: index !== 0 && v.role === "system" ? "user" : v.role,

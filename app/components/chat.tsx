@@ -67,7 +67,6 @@ import {
   getMessageImages,
   getMessageTextContent,
   isDalle3,
-  isVisionModel,
   proxiedImageUrl,
   safeLocalStorage,
   getModelSizes,
@@ -555,7 +554,6 @@ export function ChatActions(props: {
   }, [models, currentModel, currentProviderName]);
   const [showModelSelector, setShowModelSelector] = useState(false);
   const [showPluginSelector, setShowPluginSelector] = useState(false);
-  const [showUploadImage, setShowUploadImage] = useState(false);
 
   const [showSizeSelector, setShowSizeSelector] = useState(false);
   const [showQualitySelector, setShowQualitySelector] = useState(false);
@@ -571,13 +569,6 @@ export function ChatActions(props: {
   const isMobileScreen = useMobileScreen();
 
   useEffect(() => {
-    const show = isVisionModel(currentModel);
-    setShowUploadImage(show);
-    if (!show) {
-      props.setAttachImages([]);
-      props.setUploading(false);
-    }
-
     // if current model is not available
     // switch to first available model
     const isUnavailableModel = !models.some((m) => m.name === currentModel);
@@ -622,13 +613,11 @@ export function ChatActions(props: {
           />
         )}
 
-        {showUploadImage && (
-          <ChatAction
-            onClick={props.uploadImage}
-            text={Locale.Chat.InputActions.UploadImage}
-            icon={props.uploading ? <LoadingButtonIcon /> : <ImageIcon />}
-          />
-        )}
+        <ChatAction
+          onClick={props.uploadImage}
+          text={Locale.Chat.InputActions.UploadImage}
+          icon={props.uploading ? <LoadingButtonIcon /> : <ImageIcon />}
+        />
         <ChatAction
           onClick={nextTheme}
           text={Locale.Chat.InputActions.Theme[theme]}
@@ -1516,10 +1505,6 @@ function _Chat() {
 
   const handlePaste = useCallback(
     async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-      const currentModel = chatStore.currentSession().mask.modelConfig.model;
-      if (!isVisionModel(currentModel)) {
-        return;
-      }
       const items = (event.clipboardData || window.clipboardData).items;
       for (const item of items) {
         if (item.kind === "file" && item.type.startsWith("image/")) {
@@ -1554,7 +1539,7 @@ function _Chat() {
         }
       }
     },
-    [attachImages, chatStore],
+    [attachImages],
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -1566,10 +1551,6 @@ function _Chat() {
     async (e: React.DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      const currentModel = chatStore.currentSession().mask.modelConfig.model;
-      if (!isVisionModel(currentModel)) {
-        return;
-      }
       const files = e.dataTransfer.files;
       if (!files || files.length === 0) return;
 
@@ -1592,7 +1573,7 @@ function _Chat() {
       }
       setAttachImages(images);
     },
-    [attachImages, chatStore],
+    [attachImages],
   );
 
   async function uploadImage() {

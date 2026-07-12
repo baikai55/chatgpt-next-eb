@@ -25,7 +25,6 @@ import { getClientConfig } from "@/app/config/client";
 import {
   getMessageTextContent,
   getMessageTextContentWithoutThinking,
-  isVisionModel,
   getTimeoutMSByModel,
 } from "@/app/utils";
 import { RequestPayload } from "./openai";
@@ -82,7 +81,7 @@ export class SiliconflowApi implements LLMApi {
   }
 
   async chat(options: ChatOptions) {
-    const visionModel = isVisionModel(options.config.model);
+    const visionModel = true;
     const messages: ChatOptions["messages"] = [];
     for (const v of options.messages) {
       if (v.role === "assistant") {

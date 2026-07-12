@@ -319,9 +319,7 @@ export class ChatGPTApi implements LLMApi {
       const visionModel = isVisionModel(options.config.model);
       const messages: ChatOptions["messages"] = [];
       for (const v of options.messages) {
-        const content = visionModel
-          ? await preProcessImageContent(v.content)
-          : getMessageTextContent(v);
+        const content = await preProcessImageContent(v.content);
         if (!(isO1OrO3 && v.role === "system"))
           messages.push({ role: v.role, content });
       }

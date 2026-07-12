@@ -60,7 +60,7 @@ export const DEFAULT_CONFIG = {
   dontShowMaskSplashScreen: false, // dont show splash screen when create chat
   hideBuiltinMasks: false, // dont add builtin masks
 
-  customModels: "",
+  customModels: "-all",
   models: DEFAULT_MODELS as any as LLMModel[],
 
   modelConfig: {
@@ -196,7 +196,7 @@ export const useAppConfig = createPersistStore(
   }),
   {
     name: StoreKey.Config,
-    version: 4.1,
+    version: 4.2,
 
     merge(persistedState, currentState) {
       const state = persistedState as ChatConfig | undefined;
@@ -254,6 +254,13 @@ export const useAppConfig = createPersistStore(
           DEFAULT_CONFIG.modelConfig.compressModel;
         state.modelConfig.compressProviderName =
           DEFAULT_CONFIG.modelConfig.compressProviderName;
+      }
+
+      if (version < 4.2) {
+        const customModels = state.customModels ?? "";
+        state.customModels = customModels.includes("-all")
+          ? customModels
+          : ["-all", customModels].filter(Boolean).join(",");
       }
 
       return state as any;

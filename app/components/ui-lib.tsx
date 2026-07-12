@@ -464,31 +464,49 @@ export function showImageModal(
   showModal({
     title: Locale.Export.Image.Modal,
     defaultMax: defaultMax ?? true,
-    children: (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          width: "100%",
-          height: "100%",
-          ...boxStyle,
-        }}
-      >
+    children: <ZoomableImage src={img} style={style} boxStyle={boxStyle} />,
+  });
+}
+
+function ZoomableImage(props: {
+  src: string;
+  style?: CSSProperties;
+  boxStyle?: CSSProperties;
+}) {
+  const [scale, setScale] = useState(1);
+  const changeScale = (delta: number) =>
+    setScale((value) => Math.min(4, Math.max(0.25, value + delta)));
+
+  return (
+    <div className={styles["image-preview"]} style={props.boxStyle}>
+      <div className={styles["image-preview-toolbar"]}>
+        <button onClick={() => changeScale(-0.25)} aria-label="缩小图片">
+          −
+        </button>
+        <span>{Math.round(scale * 100)}%</span>
+        <button onClick={() => changeScale(0.25)} aria-label="放大图片">
+          +
+        </button>
+        <button onClick={() => setScale(1)} aria-label="重置图片大小">
+          1:1
+        </button>
+      </div>
+      <div className={styles["image-preview-canvas"]}>
         <img
-          src={proxiedImageUrl(img)}
+          src={proxiedImageUrl(props.src)}
           alt="preview"
-          style={
-            style ?? {
+          style={{
+            ...(props.style ?? {
               maxWidth: "100%",
               maxHeight: "100%",
               objectFit: "contain",
-            }
-          }
-        ></img>
+            }),
+            transform: `scale(${scale})`,
+          }}
+        />
       </div>
-    ),
-  });
+    </div>
+  );
 }
 
 export function Selector<T>(props: {
