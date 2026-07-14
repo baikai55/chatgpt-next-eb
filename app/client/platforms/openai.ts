@@ -23,6 +23,7 @@ import {
   base64Image2Blob,
   streamWithThink,
 } from "@/app/utils/chat";
+import { getImageGenerationInput } from "@/app/utils/image-generation";
 import { cloudflareAIGatewayUrl } from "@/app/utils/cloudflare";
 import { ModelSize, DalleQuality, DalleStyle } from "@/app/typing";
 
@@ -81,6 +82,7 @@ export interface RequestPayload {
 export interface ImageGenerationRequestPayload {
   model: string;
   prompt: string;
+  image?: string | string[];
   n: number;
   size: ModelSize;
   response_format?: "url" | "b64_json";
@@ -301,9 +303,14 @@ export class ChatGPTApi implements LLMApi {
 
     if (requestKind === "images") {
       const prompt = getPromptFromMessages(options.messages);
+      const image = await getImageGenerationInput(
+        options.messages,
+        preProcessImageContent,
+      );
       const imagePayload: ImageGenerationRequestPayload = {
         model: options.config.model,
         prompt,
+        image,
         n: 1,
         size: options.config?.size ?? "1024x1024",
       };
