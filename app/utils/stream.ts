@@ -31,6 +31,10 @@ export function createProxyTaskId() {
   );
 }
 
+export function shouldRecoverProxyTask(status: number) {
+  return [502, 503, 504, 524, 599].includes(status);
+}
+
 export async function waitForProxyTask(
   taskId: string,
   proxyPath: string,

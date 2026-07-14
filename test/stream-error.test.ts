@@ -1,6 +1,7 @@
 import {
   createProxyTaskId,
   hasStreamContent,
+  shouldRecoverProxyTask,
 } from "../app/utils/stream";
 
 describe("stream error handling", () => {
@@ -18,5 +19,11 @@ describe("stream error handling", () => {
 
   it("creates a unique task id for recoverable proxy requests", () => {
     expect(createProxyTaskId()).not.toBe(createProxyTaskId());
+  });
+
+  it("recovers gateway timeout responses for long-running proxy tasks", () => {
+    expect(shouldRecoverProxyTask(524)).toBe(true);
+    expect(shouldRecoverProxyTask(504)).toBe(true);
+    expect(shouldRecoverProxyTask(400)).toBe(false);
   });
 });

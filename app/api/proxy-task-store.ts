@@ -64,12 +64,17 @@ export async function createProxyTask(id: string, contentType: string) {
   });
 }
 
-export async function completeProxyTask(id: string, body: string) {
+export async function completeProxyTask(
+  id: string,
+  body: string,
+  contentType?: string,
+) {
   const task = await getProxyTask(id);
   if (!task) return;
   await saveTask(id, {
     ...task,
     status: "complete",
+    contentType: contentType || task.contentType,
     body,
     updatedAt: Date.now(),
   });

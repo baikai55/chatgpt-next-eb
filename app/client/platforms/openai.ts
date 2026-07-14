@@ -46,7 +46,11 @@ import {
   isDalle3 as _isDalle3,
   getTimeoutMSByModel,
 } from "@/app/utils";
-import { fetch } from "@/app/utils/stream";
+import {
+  fetch,
+  shouldRecoverProxyTask,
+  waitForProxyTask,
+} from "@/app/utils/stream";
 import {
   getCustomProviderProxyPath,
   getOpenAIPathKind,
@@ -464,8 +468,16 @@ export class ChatGPTApi implements LLMApi {
             : customPath || defaultPath,
         );
       }
-      if (shouldStream && chatPath.startsWith("/api/proxy/")) {
+      let imageProxyTaskId: string | undefined;
+      if (chatPath.startsWith("/api/proxy/") && shouldStream) {
         headers["X-Proxy-Task-ID"] = createProxyTaskId();
+      } else if (
+        chatPath.startsWith("/api/proxy/") &&
+        requestKind === "images"
+      ) {
+        imageProxyTaskId = createProxyTaskId();
+        headers["X-Proxy-Task-ID"] = imageProxyTaskId;
+        headers["X-Proxy-Task-Mode"] = "buffered";
       }
       if (shouldStream) {
         if (requestKind === "responses") {
@@ -632,8 +644,35 @@ export class ChatGPTApi implements LLMApi {
           requestTimeoutMs,
         );
 
-        const res = await fetch(chatPath, chatPayload);
-        clearTimeout(requestTimeoutId);
+        let res: Response;
+        try {
+          res = await fetch(chatPath, chatPayload);
+        } catch (error) {
+          if (!imageProxyTaskId) throw error;
+          const body = await waitForProxyTask(
+            imageProxyTaskId,
+            chatPath,
+            requestTimeoutMs,
+          );
+          res = new Response(body, {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        } finally {
+          clearTimeout(requestTimeoutId);
+        }
+
+        if (imageProxyTaskId && shouldRecoverProxyTask(res.status)) {
+          const body = await waitForProxyTask(
+            imageProxyTaskId,
+            chatPath,
+            requestTimeoutMs,
+          );
+          res = new Response(body, {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
 
         const resJson = await res.json();
         const message = await this.extractMessage(resJson);

@@ -52,7 +52,8 @@ function shouldSkipHeader(name: string) {
     lowerName.startsWith("sec-") ||
     lowerName.startsWith("x-forwarded-") ||
     lowerName.startsWith("x-vercel-") ||
-    lowerName === "x-proxy-task-id"
+    lowerName === "x-proxy-task-id" ||
+    lowerName === "x-proxy-task-mode"
   );
 }
 
@@ -99,6 +100,18 @@ export async function handle(
   }
   const subpath = params.path.join("/");
   const fetchUrl = buildFetchUrl(req, baseUrl, subpath);
+  const taskId = req.headers.get("x-proxy-task-id");
+  const bufferProxyTask =
+    taskId && req.headers.get("x-proxy-task-mode") === "buffered";
+  let proxyTaskEnabled = false;
+  if (taskId) {
+    try {
+      await createProxyTask(taskId, "");
+      proxyTaskEnabled = true;
+    } catch (error) {
+      console.error("[Proxy Task] failed to initialize", error);
+    }
+  }
   const headers = new Headers(
     Array.from(req.headers.entries()).filter((item) => {
       return !shouldSkipHeader(item[0]);
@@ -151,11 +164,20 @@ export async function handle(
     newHeaders.delete("content-encoding");
 
     let responseBody = res.body;
-    const taskId = req.headers.get("x-proxy-task-id");
-    if (taskId && responseBody) {
+    if (taskId && responseBody && proxyTaskEnabled) {
+      const contentType = newHeaders.get("content-type") ?? "";
+      newHeaders.set("x-proxy-task-enabled", "true");
+      if (bufferProxyTask) {
+        const body = await res.text();
+        await completeProxyTask(taskId, body, contentType);
+        return new Response(body, {
+          status: res.status,
+          statusText: res.statusText,
+          headers: newHeaders,
+        });
+      }
+
       try {
-        await createProxyTask(taskId, newHeaders.get("content-type") ?? "");
-        newHeaders.set("x-proxy-task-enabled", "true");
         const [clientBody, cacheBody] = responseBody.tee();
         responseBody = clientBody;
         const reader = cacheBody.getReader();
@@ -175,7 +197,11 @@ export async function handle(
               body.set(chunk, offset);
               offset += chunk.length;
             });
-            await completeProxyTask(taskId, new TextDecoder().decode(body));
+            await completeProxyTask(
+              taskId,
+              new TextDecoder().decode(body),
+              contentType,
+            );
           })
           .catch((error) => void failProxyTask(taskId, error));
       } catch (error) {
@@ -184,11 +210,18 @@ export async function handle(
       }
     }
 
+    if (taskId && !proxyTaskEnabled) {
+      newHeaders.set("x-proxy-task-enabled", "false");
+    }
+
     return new Response(responseBody, {
       status: res.status,
       statusText: res.statusText,
       headers: newHeaders,
     });
+  } catch (error) {
+    if (taskId && proxyTaskEnabled) await failProxyTask(taskId, error);
+    throw error;
   } finally {
     clearTimeout(timeoutId);
   }
