@@ -19,6 +19,41 @@ type StreamResponse = {
   headers: Record<string, string>;
 };
 
+export function hasStreamContent(responseText: string, remainText: string) {
+  return responseText.length > 0 || remainText.length > 0;
+}
+
+export function createProxyTaskId() {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+    "",
+  );
+}
+
+export async function waitForProxyTask(
+  taskId: string,
+  proxyPath: string,
+  timeoutMs: number,
+): Promise<string> {
+  const expiresAt = Date.now() + timeoutMs;
+  const separator = proxyPath.includes("?") ? "&" : "?";
+  const recoveryPath = `${proxyPath}${separator}proxy_task_id=${encodeURIComponent(
+    taskId,
+  )}`;
+  while (Date.now() < expiresAt) {
+    const response = await window.fetch(recoveryPath, {
+      cache: "no-store",
+    });
+    if (response.ok) return response.text();
+    if (response.status !== 202 && response.status !== 404) {
+      throw new Error(`proxy task recovery failed: ${response.status}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  throw new Error("proxy task recovery timed out");
+}
+
 export function fetch(url: string, options?: RequestInit): Promise<Response> {
   if (window.__TAURI__) {
     const {

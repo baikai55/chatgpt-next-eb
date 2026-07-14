@@ -10,7 +10,11 @@ import {
   fetchEventSource,
 } from "@fortaine/fetch-event-source";
 import { prettyObject } from "./format";
-import { fetch as tauriFetch } from "./stream";
+import {
+  fetch as tauriFetch,
+  hasStreamContent,
+  waitForProxyTask,
+} from "./stream";
 
 export function compressImage(file: Blob, maxSize: number): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -377,6 +381,13 @@ export function stream(
         finish();
       },
       onerror(e) {
+        // Mobile browsers can suspend the streaming connection when the user
+        // switches apps or tabs. If content has already arrived, keep that
+        // successful response instead of replacing it with a network error.
+        if (hasStreamContent(responseText, remainText)) {
+          finish();
+          return;
+        }
         options?.onError?.(e);
         throw e;
       },
@@ -418,6 +429,7 @@ export function streamWithThink(
   let isInThinkingMode = false;
   let lastIsThinking = false;
   let lastIsThinkingTagged = false; //between <think> and </think> tags
+  let taskId = new Headers(headers).get("x-proxy-task-id");
 
   // animate response to make it looks smooth
   function animateResponseText() {
@@ -522,6 +534,72 @@ export function streamWithThink(
 
   controller.signal.onabort = finish;
 
+  function handleSseData(text: string) {
+    if (text === "[DONE]" || finished) {
+      return finish();
+    }
+    if (!text || text.trim().length === 0) return;
+    try {
+      const chunk = parseSSE(text, runTools);
+      if (!chunk?.content || chunk.content.length === 0) return;
+
+      if (!chunk.isThinking) {
+        if (chunk.content.startsWith("<think>")) {
+          chunk.isThinking = true;
+          chunk.content = chunk.content.slice(7).trim();
+          lastIsThinkingTagged = true;
+        } else if (chunk.content.endsWith("</think>")) {
+          chunk.isThinking = false;
+          chunk.content = chunk.content.slice(0, -8).trim();
+          lastIsThinkingTagged = false;
+        } else if (lastIsThinkingTagged) {
+          chunk.isThinking = true;
+        }
+      }
+
+      const isThinkingChanged = lastIsThinking !== chunk.isThinking;
+      lastIsThinking = chunk.isThinking;
+      if (chunk.isThinking) {
+        if (!isInThinkingMode || isThinkingChanged) {
+          isInThinkingMode = true;
+          if (remainText.length > 0) remainText += "\n";
+          remainText += "> " + chunk.content;
+        } else if (chunk.content.includes("\n\n")) {
+          remainText += chunk.content.split("\n\n").join("\n\n> ");
+        } else {
+          remainText += chunk.content;
+        }
+      } else if (isInThinkingMode || isThinkingChanged) {
+        isInThinkingMode = false;
+        remainText += "\n\n" + chunk.content;
+      } else {
+        remainText += chunk.content;
+      }
+    } catch (e) {
+      console.error("[Request] parse error", text, e);
+    }
+  }
+
+  async function recoverTask() {
+    if (!taskId) return false;
+    const raw = await waitForProxyTask(taskId, chatPath, timeoutMs);
+    responseText = "";
+    remainText = "";
+    raw
+      .replace(/\r\n/g, "\n")
+      .split("\n\n")
+      .forEach((event) => {
+        const data = event
+          .split("\n")
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice(5).trimStart())
+          .join("\n");
+        if (data) handleSseData(data);
+      });
+    finish();
+    return true;
+  }
+
   function chatApi(
     chatPath: string,
     headers: any,
@@ -543,6 +621,9 @@ export function streamWithThink(
       ...chatPayload,
       async onopen(res) {
         clearTimeout(requestTimeoutId);
+        if (res.headers.get("x-proxy-task-enabled") === "false") {
+          taskId = null;
+        }
         const contentType = res.headers.get("content-type");
         console.log("[Request] response content type: ", contentType);
         responseRes = res;
@@ -580,78 +661,23 @@ export function streamWithThink(
         }
       },
       onmessage(msg) {
-        if (msg.data === "[DONE]" || finished) {
-          return finish();
-        }
-        const text = msg.data;
-        // Skip empty messages
-        if (!text || text.trim().length === 0) {
-          return;
-        }
-        try {
-          const chunk = parseSSE(text, runTools);
-          // Skip if content is empty
-          if (!chunk?.content || chunk.content.length === 0) {
-            return;
-          }
-
-          // deal with <think> and </think> tags start
-          if (!chunk.isThinking) {
-            if (chunk.content.startsWith("<think>")) {
-              chunk.isThinking = true;
-              chunk.content = chunk.content.slice(7).trim();
-              lastIsThinkingTagged = true;
-            } else if (chunk.content.endsWith("</think>")) {
-              chunk.isThinking = false;
-              chunk.content = chunk.content.slice(0, -8).trim();
-              lastIsThinkingTagged = false;
-            } else if (lastIsThinkingTagged) {
-              chunk.isThinking = true;
-            }
-          }
-          // deal with <think> and </think> tags start
-
-          // Check if thinking mode changed
-          const isThinkingChanged = lastIsThinking !== chunk.isThinking;
-          lastIsThinking = chunk.isThinking;
-
-          if (chunk.isThinking) {
-            // If in thinking mode
-            if (!isInThinkingMode || isThinkingChanged) {
-              // If this is a new thinking block or mode changed, add prefix
-              isInThinkingMode = true;
-              if (remainText.length > 0) {
-                remainText += "\n";
-              }
-              remainText += "> " + chunk.content;
-            } else {
-              // Handle newlines in thinking content
-              if (chunk.content.includes("\n\n")) {
-                const lines = chunk.content.split("\n\n");
-                remainText += lines.join("\n\n> ");
-              } else {
-                remainText += chunk.content;
-              }
-            }
-          } else {
-            // If in normal mode
-            if (isInThinkingMode || isThinkingChanged) {
-              // If switching from thinking mode to normal mode
-              isInThinkingMode = false;
-              remainText += "\n\n" + chunk.content;
-            } else {
-              remainText += chunk.content;
-            }
-          }
-        } catch (e) {
-          console.error("[Request] parse error", text, msg, e);
-          // Don't throw error for parse failures, just log them
-        }
+        handleSseData(msg.data);
       },
       onclose() {
         finish();
       },
       onerror(e) {
+        if (taskId) {
+          void recoverTask().catch((recoveryError) => {
+            console.error("[Proxy Task] recovery failed", recoveryError);
+            options?.onError?.(recoveryError);
+          });
+          throw e;
+        }
+        if (hasStreamContent(responseText, remainText)) {
+          finish();
+          return;
+        }
         options?.onError?.(e);
         throw e;
       },

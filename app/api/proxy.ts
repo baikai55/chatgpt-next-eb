@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSideConfig } from "@/app/config/server";
 import { cloudflareAIGatewayUrl } from "@/app/utils/cloudflare";
+import {
+  completeProxyTask,
+  createProxyTask,
+  failProxyTask,
+  getProxyTask,
+} from "./proxy-task-store";
 
 function joinBaseUrlPath(baseUrl: string, path: string): string {
   const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
@@ -45,7 +51,8 @@ function shouldSkipHeader(name: string) {
     skipHeaders.has(lowerName) ||
     lowerName.startsWith("sec-") ||
     lowerName.startsWith("x-forwarded-") ||
-    lowerName.startsWith("x-vercel-")
+    lowerName.startsWith("x-vercel-") ||
+    lowerName === "x-proxy-task-id"
   );
 }
 
@@ -57,6 +64,29 @@ export async function handle(
 
   if (req.method === "OPTIONS") {
     return NextResponse.json({ body: "OK" }, { status: 200 });
+  }
+  const recoveryTaskId = req.nextUrl.searchParams.get("proxy_task_id");
+  if (recoveryTaskId) {
+    const task = await getProxyTask(recoveryTaskId);
+    if (!task) {
+      return NextResponse.json({ status: "missing" }, { status: 404 });
+    }
+    if (task.status === "pending") {
+      return NextResponse.json({ status: "pending" }, { status: 202 });
+    }
+    if (task.status === "error") {
+      return NextResponse.json(
+        { status: "error", error: task.error },
+        { status: 502 },
+      );
+    }
+    return new Response(task.body, {
+      status: 200,
+      headers: {
+        "content-type": task.contentType || "text/event-stream",
+        "cache-control": "no-store",
+      },
+    });
   }
   const serverConfig = getServerSideConfig();
 
@@ -120,7 +150,41 @@ export async function handle(
     // The browser will try to decode the response with brotli and fail
     newHeaders.delete("content-encoding");
 
-    return new Response(res.body, {
+    let responseBody = res.body;
+    const taskId = req.headers.get("x-proxy-task-id");
+    if (taskId && responseBody) {
+      try {
+        await createProxyTask(taskId, newHeaders.get("content-type") ?? "");
+        newHeaders.set("x-proxy-task-enabled", "true");
+        const [clientBody, cacheBody] = responseBody.tee();
+        responseBody = clientBody;
+        const reader = cacheBody.getReader();
+        reader
+          .read()
+          .then(async function collect(result): Promise<void> {
+            const chunks: Uint8Array[] = [];
+            let current = result;
+            while (!current.done) {
+              chunks.push(current.value);
+              current = await reader.read();
+            }
+            const length = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+            const body = new Uint8Array(length);
+            let offset = 0;
+            chunks.forEach((chunk) => {
+              body.set(chunk, offset);
+              offset += chunk.length;
+            });
+            await completeProxyTask(taskId, new TextDecoder().decode(body));
+          })
+          .catch((error) => void failProxyTask(taskId, error));
+      } catch (error) {
+        newHeaders.set("x-proxy-task-enabled", "false");
+        console.error("[Proxy Task] failed to initialize", error);
+      }
+    }
+
+    return new Response(responseBody, {
       status: res.status,
       statusText: res.statusText,
       headers: newHeaders,

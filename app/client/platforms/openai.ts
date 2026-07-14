@@ -52,6 +52,7 @@ import {
   resolveCustomProviderChatPath,
   shouldProxyCustomProvider,
 } from "@/app/utils/custom-provider";
+import { createProxyTaskId } from "@/app/utils/stream";
 
 export interface OpenAIListModelResponse {
   object: string;
@@ -447,6 +448,9 @@ export class ChatGPTApi implements LLMApi {
             ? customProviderChatPath || defaultPath
             : customPath || defaultPath,
         );
+      }
+      if (shouldStream && chatPath.startsWith("/api/proxy/")) {
+        headers["X-Proxy-Task-ID"] = createProxyTaskId();
       }
       if (shouldStream) {
         if (requestKind === "responses") {

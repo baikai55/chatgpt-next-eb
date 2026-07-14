@@ -510,7 +510,11 @@ export const useChatStore = createPersistStore(
             });
           },
           onError(error) {
-            const isAborted = error.message?.includes?.("aborted");
+            const errorMessage = error.message?.toLowerCase?.() ?? "";
+            const isAborted =
+              error.name === "AbortError" ||
+              errorMessage.includes("abort") ||
+              errorMessage.includes("cancel");
             // A plain abort (user stop / session switch / timeout) is a graceful
             // stop, not a failure. onFinish already kept the partial content and
             // cleared the streaming flag, so don't pollute the message with an
