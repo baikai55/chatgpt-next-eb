@@ -51,6 +51,7 @@ import {
   getCustomProviderProxyPath,
   getOpenAIPathKind,
   resolveCustomProviderChatPath,
+  resolveOpenAIImagePath,
   shouldProxyCustomProvider,
 } from "@/app/utils/custom-provider";
 import { createProxyTaskId } from "@/app/utils/stream";
@@ -300,17 +301,18 @@ export class ChatGPTApi implements LLMApi {
         : "chat";
 
     let requestPayload: OpenAIRequestPayload;
+    let imageGenerationInput: string | string[] | undefined;
 
     if (requestKind === "images") {
       const prompt = getPromptFromMessages(options.messages);
-      const image = await getImageGenerationInput(
+      imageGenerationInput = await getImageGenerationInput(
         options.messages,
         preProcessImageContent,
       );
       const imagePayload: ImageGenerationRequestPayload = {
         model: options.config.model,
         prompt,
-        image,
+        image: imageGenerationInput,
         n: 1,
         size: options.config?.size ?? "1024x1024",
       };
@@ -450,9 +452,15 @@ export class ChatGPTApi implements LLMApi {
           this.customProviderConfig && customPathKind === requestKind
             ? customProviderChatPath
             : undefined;
+        const imagePath = resolveOpenAIImagePath(
+          customPath || defaultPath,
+          !!imageGenerationInput,
+        );
         chatPath = this.path(
           requestKind === "chat"
             ? customProviderChatPath || defaultPath
+            : requestKind === "images"
+            ? imagePath
             : customPath || defaultPath,
         );
       }

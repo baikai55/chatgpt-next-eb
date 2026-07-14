@@ -1,7 +1,9 @@
 import {
   extractCustomProviderModelNames,
   getCustomProviderModelsPath,
+  getOpenAIPathKind,
   joinCustomProviderUrl,
+  resolveOpenAIImagePath,
   shouldProxyCustomProvider,
 } from "../app/utils/custom-provider";
 
@@ -18,9 +20,9 @@ describe("custom provider model helpers", () => {
   });
 
   test("should avoid duplicating version path when joining urls", () => {
-    expect(joinCustomProviderUrl("https://api.example.com/v1", "v1/models")).toBe(
-      "https://api.example.com/v1/models",
-    );
+    expect(
+      joinCustomProviderUrl("https://api.example.com/v1", "v1/models"),
+    ).toBe("https://api.example.com/v1/models");
   });
 
   test("should allow custom providers to opt out of server proxy", () => {
@@ -37,6 +39,19 @@ describe("custom provider model helpers", () => {
         useProxy: false,
       }),
     ).toBe(false);
+  });
+
+  test("should route image inputs to the edits endpoint", () => {
+    expect(resolveOpenAIImagePath("v1/images/generations", false)).toBe(
+      "v1/images/generations",
+    );
+    expect(resolveOpenAIImagePath("v1/images/generations", true)).toBe(
+      "v1/images/edits",
+    );
+    expect(
+      resolveOpenAIImagePath("v1/images/generations?api-version=1", true),
+    ).toBe("v1/images/edits?api-version=1");
+    expect(getOpenAIPathKind("v1/images/edits")).toBe("images");
   });
 
   test("should extract openai-compatible model names", () => {

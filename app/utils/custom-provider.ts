@@ -30,6 +30,11 @@ export const OPENAI_PATH_PRESETS: { label: string; value: string }[] = [
 
 export type OpenAIPathKind = "chat" | "responses" | "images";
 
+export function resolveOpenAIImagePath(path: string, hasImageInput: boolean) {
+  if (!hasImageInput) return path;
+  return path.replace(/images\/generations(?=\?|$)/i, "images/edits");
+}
+
 export function getOpenAIPathKind(path?: string): OpenAIPathKind {
   const normalizedPath = (path || "")
     .trim()
@@ -41,7 +46,10 @@ export function getOpenAIPathKind(path?: string): OpenAIPathKind {
     return "responses";
   }
 
-  if (normalizedPath === "v1/images/generations") {
+  if (
+    normalizedPath === "v1/images/generations" ||
+    normalizedPath === "v1/images/edits"
+  ) {
     return "images";
   }
 
