@@ -145,27 +145,41 @@ export function base64Image2Blob(base64Data: string, contentType: string) {
   return new Blob([byteArray], { type: contentType });
 }
 
-export function uploadImage(file: Blob): Promise<string> {
-  if (!window._SW_ENABLED) {
-    // if serviceWorker register error, using compressImage
-    return compressImage(file, 256 * 1024);
-  }
+export async function uploadImage(file: Blob): Promise<string> {
+  const fallbackToBase64 = () => compressImage(file, 256 * 1024);
+  const serviceWorkerControlsPage =
+    window._SW_ENABLED &&
+    "serviceWorker" in navigator &&
+    navigator.serviceWorker.controller;
+
+  if (!serviceWorkerControlsPage) return fallbackToBase64();
+
   const body = new FormData();
   body.append("file", file);
-  return fetch(UPLOAD_URL, {
-    method: "post",
-    body,
-    mode: "cors",
-    credentials: "include",
-  })
-    .then((res) => res.json())
-    .then((res) => {
-      // console.log("res", res);
-      if (res?.code == 0 && res?.data) {
-        return res?.data;
-      }
-      throw Error(`upload Error: ${res?.msg}`);
+
+  try {
+    const response = await fetch(UPLOAD_URL, {
+      method: "post",
+      body,
+      mode: "cors",
+      credentials: "include",
     });
+    if (!response.ok) {
+      throw new Error(`service worker cache returned ${response.status}`);
+    }
+
+    const result = await response.json();
+    if (result?.code === 0 && result?.data) return result.data;
+
+    throw new Error(`upload error: ${result?.msg ?? "invalid response"}`);
+  } catch (error) {
+    console.warn(
+      "[Image Upload] service worker cache unavailable, using base64",
+      error,
+    );
+    window._SW_ENABLED = false;
+    return fallbackToBase64();
+  }
 }
 
 export function removeImage(imageUrl: string) {

@@ -15,12 +15,13 @@ if ('serviceWorker' in navigator) {
       registration.update().then(res => {
         console.log('ServiceWorker registration update: ', res);
       });
-      window._SW_ENABLED = true
+      window._SW_ENABLED = Boolean(navigator.serviceWorker.controller)
     }, function (err) {
       console.error('ServiceWorker registration failed: ', err);
     });
     navigator.serviceWorker.addEventListener('controllerchange', function() {
       console.log('ServiceWorker controllerchange ');
+      window._SW_ENABLED = Boolean(navigator.serviceWorker.controller)
       window.location.reload(true);
     });
   });
