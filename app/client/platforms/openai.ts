@@ -23,7 +23,10 @@ import {
   base64Image2Blob,
   streamWithThink,
 } from "@/app/utils/chat";
-import { getImageGenerationInput } from "@/app/utils/image-generation";
+import {
+  getImageGenerationInput,
+  resolveImageGenerationSize,
+} from "@/app/utils/image-generation";
 import { cloudflareAIGatewayUrl } from "@/app/utils/cloudflare";
 import { ModelSize, DalleQuality, DalleStyle } from "@/app/typing";
 
@@ -318,7 +321,10 @@ export class ChatGPTApi implements LLMApi {
         prompt,
         image: imageGenerationInput,
         n: 1,
-        size: options.config?.size ?? "1024x1024",
+        size: resolveImageGenerationSize(
+          options.config.model,
+          options.config?.size,
+        ),
       };
 
       if (isDalle3) {

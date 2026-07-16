@@ -1,10 +1,19 @@
 import type { RequestMessage } from "@/app/client/api";
+import type { ModelSize } from "@/app/typing";
 
 type ImageContentPreprocessor = (
   content: RequestMessage["content"],
 ) => Promise<RequestMessage["content"]>;
 
 const keepImageContent: ImageContentPreprocessor = async (content) => content;
+
+export function resolveImageGenerationSize(
+  model: string,
+  configuredSize?: ModelSize,
+): ModelSize {
+  if (model.toLowerCase().includes("gpt-image")) return "auto";
+  return configuredSize ?? "1024x1024";
+}
 
 export async function getImageGenerationInput(
   messages: RequestMessage[],

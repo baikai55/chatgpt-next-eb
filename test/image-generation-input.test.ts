@@ -1,4 +1,7 @@
-import { getImageGenerationInput } from "../app/utils/image-generation";
+import {
+  getImageGenerationInput,
+  resolveImageGenerationSize,
+} from "../app/utils/image-generation";
 
 describe("image generation input", () => {
   test("uses only the latest message image", async () => {
@@ -56,5 +59,21 @@ describe("image generation input", () => {
     ]);
 
     expect(image).toBeUndefined();
+  });
+
+  test("uses automatic size for gpt-image models", () => {
+    expect(resolveImageGenerationSize("gpt-image-2", "1024x1024")).toBe(
+      "auto",
+    );
+    expect(resolveImageGenerationSize("chatgpt-image-latest")).toBe("auto");
+  });
+
+  test("keeps configured sizes for other image models", () => {
+    expect(resolveImageGenerationSize("dall-e-3", "1792x1024")).toBe(
+      "1792x1024",
+    );
+    expect(resolveImageGenerationSize("custom-image-model")).toBe(
+      "1024x1024",
+    );
   });
 });
