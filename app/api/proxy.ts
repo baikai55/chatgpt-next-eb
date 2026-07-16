@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { waitUntil } from "@vercel/functions";
 import { getServerSideConfig } from "@/app/config/server";
 import { cloudflareAIGatewayUrl } from "@/app/utils/cloudflare";
 import {
@@ -7,6 +8,39 @@ import {
   failProxyTask,
   getProxyTask,
 } from "./proxy-task-store";
+
+const DEFAULT_PROXY_TIMEOUT_MS = 10 * 60 * 1000;
+const BUFFERED_PROXY_TASK_TIMEOUT_MS = 290 * 1000;
+
+async function runBufferedProxyTask(
+  taskId: string,
+  fetchUrl: string,
+  fetchOptions: RequestInit,
+  timeoutId: ReturnType<typeof setTimeout>,
+) {
+  try {
+    const response = await fetch(fetchUrl, fetchOptions);
+    const body = await response.text();
+    if (!response.ok) {
+      throw new Error(
+        `Upstream request failed: ${response.status} ${response.statusText}`,
+      );
+    }
+    await completeProxyTask(
+      taskId,
+      body,
+      response.headers.get("content-type") ?? "application/json",
+    );
+  } catch (error) {
+    try {
+      await failProxyTask(taskId, error);
+    } catch (taskError) {
+      console.error("[Proxy Task] failed to store task error", taskError);
+    }
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 function joinBaseUrlPath(baseUrl: string, path: string): string {
   const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
@@ -146,8 +180,24 @@ export async function handle(
     () => {
       controller.abort();
     },
-    10 * 60 * 1000,
+    bufferProxyTask && proxyTaskEnabled
+      ? BUFFERED_PROXY_TASK_TIMEOUT_MS
+      : DEFAULT_PROXY_TIMEOUT_MS,
   );
+
+  if (bufferProxyTask && taskId && proxyTaskEnabled) {
+    waitUntil(runBufferedProxyTask(taskId, fetchUrl, fetchOptions, timeoutId));
+    return NextResponse.json(
+      { status: "pending" },
+      {
+        status: 202,
+        headers: {
+          "cache-control": "no-store",
+          "x-proxy-task-enabled": "true",
+        },
+      },
+    );
+  }
 
   try {
     const res = await fetch(fetchUrl, fetchOptions);
@@ -167,16 +217,6 @@ export async function handle(
     if (taskId && responseBody && proxyTaskEnabled) {
       const contentType = newHeaders.get("content-type") ?? "";
       newHeaders.set("x-proxy-task-enabled", "true");
-      if (bufferProxyTask) {
-        const body = await res.text();
-        await completeProxyTask(taskId, body, contentType);
-        return new Response(body, {
-          status: res.status,
-          statusText: res.statusText,
-          headers: newHeaders,
-        });
-      }
-
       try {
         const [clientBody, cacheBody] = responseBody.tee();
         responseBody = clientBody;

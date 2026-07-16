@@ -32,7 +32,7 @@ export function createProxyTaskId() {
 }
 
 export function shouldRecoverProxyTask(status: number) {
-  return [502, 503, 504, 524, 599].includes(status);
+  return [202, 502, 503, 504, 524, 599].includes(status);
 }
 
 export async function waitForProxyTask(
@@ -51,7 +51,12 @@ export async function waitForProxyTask(
     });
     if (response.ok) return response.text();
     if (response.status !== 202 && response.status !== 404) {
-      throw new Error(`proxy task recovery failed: ${response.status}`);
+      let message = `proxy task recovery failed: ${response.status}`;
+      try {
+        const result = await response.json();
+        if (typeof result?.error === "string") message = result.error;
+      } catch {}
+      throw new Error(message);
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }

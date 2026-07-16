@@ -2,7 +2,9 @@ import {
   createProxyTaskId,
   hasStreamContent,
   shouldRecoverProxyTask,
+  waitForProxyTask,
 } from "../app/utils/stream";
+import { jest } from "@jest/globals";
 
 describe("stream error handling", () => {
   it("keeps a response when rendered content arrived before disconnect", () => {
@@ -22,8 +24,31 @@ describe("stream error handling", () => {
   });
 
   it("recovers gateway timeout responses for long-running proxy tasks", () => {
+    expect(shouldRecoverProxyTask(202)).toBe(true);
     expect(shouldRecoverProxyTask(524)).toBe(true);
     expect(shouldRecoverProxyTask(504)).toBe(true);
     expect(shouldRecoverProxyTask(400)).toBe(false);
+  });
+
+  it("reports the stored upstream error instead of parsing an HTML body", async () => {
+    const originalFetch = window.fetch;
+    window.fetch = jest.fn().mockResolvedValue(
+      {
+        ok: false,
+        status: 502,
+        json: async () => ({
+          status: "error",
+          error: "Upstream request failed: 403 Forbidden",
+        }),
+      } as Response,
+    );
+
+    try {
+      await expect(
+        waitForProxyTask("failed-task", "/api/proxy/v1/images/edits", 1000),
+      ).rejects.toThrow("Upstream request failed: 403 Forbidden");
+    } finally {
+      window.fetch = originalFetch;
+    }
   });
 });

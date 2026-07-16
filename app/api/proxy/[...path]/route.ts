@@ -8,8 +8,6 @@ function handle(req: NextRequest, { params }: { params: { path: string[] } }) {
 export const GET = handle;
 export const POST = handle;
 
-// Image generation commonly takes longer than the Edge runtime's 25-second
-// time-to-first-byte limit. Keep only the custom proxy on the Node.js runtime
-// so the other provider routes can continue using Edge.
-export const runtime = "nodejs";
-export const maxDuration = 300;
+// Buffered image tasks return 202 immediately and continue through waitUntil,
+// preserving the Edge egress path while avoiding the 25-second TTFB limit.
+export const runtime = "edge";
