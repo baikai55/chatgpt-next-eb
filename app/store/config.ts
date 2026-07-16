@@ -68,12 +68,12 @@ export const DEFAULT_CONFIG = {
     providerName: "OpenAI" as ServiceProvider,
     temperature: 0.5,
     top_p: 1,
-    max_tokens: 4000,
+    max_tokens: 8192,
     presence_penalty: 0,
     frequency_penalty: 0,
     sendMemory: true,
     historyMessageCount: 4,
-    compressMessageLengthThreshold: 1000,
+    compressMessageLengthThreshold: 8000,
     compressModel: "",
     compressProviderName: "",
     enableInjectSystemPrompts: true,
@@ -112,6 +112,15 @@ export type ChatConfig = typeof DEFAULT_CONFIG;
 export type ModelConfig = ChatConfig["modelConfig"];
 export type TTSConfig = ChatConfig["ttsConfig"];
 export type RealtimeConfig = ChatConfig["realtimeConfig"];
+
+export function migrateLegacyModelConfigLimits(modelConfig: ModelConfig) {
+  if ([2000, 4000].includes(modelConfig.max_tokens)) {
+    modelConfig.max_tokens = 8192;
+  }
+  if ([1000, 2000].includes(modelConfig.compressMessageLengthThreshold)) {
+    modelConfig.compressMessageLengthThreshold = 8000;
+  }
+}
 
 export function limitNumber(
   x: number,
@@ -196,7 +205,7 @@ export const useAppConfig = createPersistStore(
   }),
   {
     name: StoreKey.Config,
-    version: 4.2,
+    version: 4.3,
 
     merge(persistedState, currentState) {
       const state = persistedState as ChatConfig | undefined;
@@ -261,6 +270,10 @@ export const useAppConfig = createPersistStore(
         state.customModels = customModels.includes("-all")
           ? customModels
           : ["-all", customModels].filter(Boolean).join(",");
+      }
+
+      if (version < 4.3) {
+        migrateLegacyModelConfigLimits(state.modelConfig);
       }
 
       return state as any;
