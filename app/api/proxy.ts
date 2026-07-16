@@ -11,6 +11,45 @@ import {
 
 const DEFAULT_PROXY_TIMEOUT_MS = 10 * 60 * 1000;
 const BUFFERED_PROXY_TASK_TIMEOUT_MS = 290 * 1000;
+const MAX_UPSTREAM_ERROR_LENGTH = 1000;
+
+function normalizeUpstreamError(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const message = value.replace(/\s+/g, " ").trim();
+  if (!message) return undefined;
+  return message.slice(0, MAX_UPSTREAM_ERROR_LENGTH);
+}
+
+function getUpstreamErrorDetail(body: string, contentType: string) {
+  const trimmedBody = body.trim();
+  if (!trimmedBody) return undefined;
+
+  try {
+    const payload = JSON.parse(trimmedBody) as unknown;
+    if (typeof payload === "string") return normalizeUpstreamError(payload);
+    if (payload && typeof payload === "object") {
+      const result = payload as Record<string, unknown>;
+      const error = result.error;
+      if (error && typeof error === "object") {
+        const errorResult = error as Record<string, unknown>;
+        const nestedMessage =
+          normalizeUpstreamError(errorResult.message) ||
+          normalizeUpstreamError(errorResult.detail);
+        if (nestedMessage) return nestedMessage;
+      }
+      return (
+        normalizeUpstreamError(error) ||
+        normalizeUpstreamError(result.message) ||
+        normalizeUpstreamError(result.detail)
+      );
+    }
+  } catch {}
+
+  if (contentType.toLowerCase().startsWith("text/plain")) {
+    return normalizeUpstreamError(trimmedBody);
+  }
+  return undefined;
+}
 
 async function runBufferedProxyTask(
   taskId: string,
@@ -22,8 +61,15 @@ async function runBufferedProxyTask(
     const response = await fetch(fetchUrl, fetchOptions);
     const body = await response.text();
     if (!response.ok) {
+      const status = [response.status, response.statusText]
+        .filter(Boolean)
+        .join(" ");
+      const detail = getUpstreamErrorDetail(
+        body,
+        response.headers.get("content-type") ?? "",
+      );
       throw new Error(
-        `Upstream request failed: ${response.status} ${response.statusText}`,
+        `Upstream request failed: ${status}${detail ? ` - ${detail}` : ""}`,
       );
     }
     await completeProxyTask(

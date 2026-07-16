@@ -79,7 +79,7 @@ describe("buffered proxy tasks", () => {
     });
   });
 
-  it("stores an upstream rejection as a task error", async () => {
+  it("does not expose an upstream HTML rejection page", async () => {
     const taskId = `edge-image-error-${Date.now()}`;
     const pendingTasks: Promise<unknown>[] = [];
     (globalThis as any)[requestContextSymbol] = {
@@ -119,6 +119,51 @@ describe("buffered proxy tasks", () => {
     expect(await getProxyTask(taskId)).toMatchObject({
       status: "error",
       error: "Upstream request failed: 403 Forbidden",
+    });
+  });
+
+  it("includes the upstream JSON error reason in the task error", async () => {
+    const taskId = `edge-image-policy-error-${Date.now()}`;
+    const pendingTasks: Promise<unknown>[] = [];
+    const upstreamMessage =
+      "非常抱歉，该提示可能违反了关于裸露、色情或情色内容的防护限制。";
+    (globalThis as any)[requestContextSymbol] = {
+      get: () => ({
+        waitUntil: (promise: Promise<unknown>) => pendingTasks.push(promise),
+      }),
+    };
+    global.fetch = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ message: upstreamMessage }), {
+        status: 400,
+        statusText: "Bad Request",
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    const request = new NextRequest(
+      "http://localhost/api/proxy/v1/images/edits",
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer test-key",
+          "content-type": "application/json",
+          "x-base-url": "https://api.example.com",
+          "x-proxy-task-id": taskId,
+          "x-proxy-task-mode": "buffered",
+        },
+        body: JSON.stringify({ model: "image-model", prompt: "test" }),
+      },
+    );
+
+    const response = await handle(request, {
+      params: { path: ["v1", "images", "edits"] },
+    });
+
+    expect(response.status).toBe(202);
+    await Promise.all(pendingTasks);
+    expect(await getProxyTask(taskId)).toMatchObject({
+      status: "error",
+      error: `Upstream request failed: 400 Bad Request - ${upstreamMessage}`,
     });
   });
 });
