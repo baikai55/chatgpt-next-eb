@@ -49,16 +49,17 @@ export async function waitForProxyTask(
     const response = await window.fetch(recoveryPath, {
       cache: "no-store",
     });
-    if (response.ok) return response.text();
-    if (response.status !== 202 && response.status !== 404) {
-      let message = `proxy task recovery failed: ${response.status}`;
-      try {
-        const result = await response.json();
-        if (typeof result?.error === "string") message = result.error;
-      } catch {}
-      throw new Error(message);
+    if (response.status === 202 || response.status === 404) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      continue;
     }
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    if (response.ok) return response.text();
+    let message = `proxy task recovery failed: ${response.status}`;
+    try {
+      const result = await response.json();
+      if (typeof result?.error === "string") message = result.error;
+    } catch {}
+    throw new Error(message);
   }
   throw new Error("proxy task recovery timed out");
 }

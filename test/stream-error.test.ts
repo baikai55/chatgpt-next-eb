@@ -51,4 +51,33 @@ describe("stream error handling", () => {
       window.fetch = originalFetch;
     }
   });
+
+  it("keeps polling after pending and reports a later task failure", async () => {
+    const originalFetch = window.fetch;
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 202,
+        text: async () => JSON.stringify({ status: "pending" }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        json: async () => ({
+          status: "error",
+          error: "Upstream request failed: 400 Bad Request",
+        }),
+      } as Response);
+    window.fetch = fetchMock;
+
+    try {
+      await expect(
+        waitForProxyTask("pending-task", "/api/proxy/v1/images/edits", 3000),
+      ).rejects.toThrow("Upstream request failed: 400 Bad Request");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      window.fetch = originalFetch;
+    }
+  });
 });
