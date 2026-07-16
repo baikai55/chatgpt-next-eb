@@ -17,18 +17,23 @@ describe("buffered proxy tasks", () => {
 
   it("returns immediately and completes the image task in waitUntil", async () => {
     const taskId = `edge-image-${Date.now()}`;
+    const requestPayload = JSON.stringify({
+      model: "image-model",
+      prompt: "test",
+    });
     const pendingTasks: Promise<unknown>[] = [];
     (globalThis as any)[requestContextSymbol] = {
       get: () => ({
         waitUntil: (promise: Promise<unknown>) => pendingTasks.push(promise),
       }),
     };
-    global.fetch = jest.fn().mockResolvedValue(
+    const fetchMock = jest.fn().mockResolvedValue(
       new Response(JSON.stringify({ data: [{ b64_json: "result" }] }), {
         status: 200,
         headers: { "content-type": "application/json" },
       }),
     );
+    global.fetch = fetchMock;
 
     const request = new NextRequest(
       "http://localhost/api/proxy/v1/images/generations",
@@ -41,7 +46,7 @@ describe("buffered proxy tasks", () => {
           "x-proxy-task-id": taskId,
           "x-proxy-task-mode": "buffered",
         },
-        body: JSON.stringify({ model: "image-model", prompt: "test" }),
+        body: requestPayload,
       },
     );
 
@@ -53,6 +58,17 @@ describe("buffered proxy tasks", () => {
     expect(response.headers.get("x-proxy-task-enabled")).toBe("true");
     expect(pendingTasks).toHaveLength(1);
     expect(await getProxyTask(taskId)).toMatchObject({ status: "pending" });
+    const [, upstreamOptions] = fetchMock.mock.calls[0] as unknown as [
+      RequestInfo | URL,
+      RequestInit,
+    ];
+    expect(upstreamOptions.body).toBeInstanceOf(ArrayBuffer);
+    expect(
+      new TextDecoder().decode(upstreamOptions.body as ArrayBuffer),
+    ).toBe(requestPayload);
+    expect((upstreamOptions as RequestInit & { duplex?: string }).duplex).toBe(
+      undefined,
+    );
 
     await Promise.all(pendingTasks);
 

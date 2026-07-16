@@ -165,16 +165,22 @@ export async function handle(
   }
 
   const controller = new AbortController();
+  // A background task must not retain the incoming request stream. Vercel closes
+  // that stream once the 202 response is sent, so materialize it first.
+  const requestBody =
+    bufferProxyTask && req.body ? await req.arrayBuffer() : req.body;
   const fetchOptions: RequestInit = {
     headers,
     method: req.method,
-    body: req.body,
+    body: requestBody,
     // to fix #2485: https://stackoverflow.com/questions/55920957/cloudflare-worker-typeerror-one-time-use-body
     redirect: "manual",
-    // @ts-ignore
-    duplex: "half",
     signal: controller.signal,
   };
+  if (!bufferProxyTask) {
+    // @ts-ignore
+    fetchOptions.duplex = "half";
+  }
 
   const timeoutId = setTimeout(
     () => {
